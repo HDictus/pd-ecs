@@ -11,6 +11,7 @@
 #    then add in house positions (settlements)
 # though this is very much unfinished, I think I have what I need to
 # put together the first parts of the ECS
+# otherwise, just start with the first one in tinkering, put ecs there
 
 from scipy.stats import norm, uniform
 from anasazi_mapping import MapData, START_YEAR, END_YEAR
