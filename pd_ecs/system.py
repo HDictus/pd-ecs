@@ -23,7 +23,7 @@ class System:
 
     def filtered_ids(self, components):
         # TODO: note, not yet working for multiple object types
-        return set(self.world.get_component(components[0]).index)
+        return self.world.get_component(components[0]).index
 
 
 def is_list_of_components(someattr):
