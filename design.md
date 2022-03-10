@@ -32,6 +32,35 @@ ooh! we can do one better: we use add_entities(componentname=dict(varname=anarra
 
 
 
+Declaring components
+====================
+
+a component basically represents a group of column headers
+it could just be a list of strings...
+But the tricky thing is that you need to be able to ask the world for the appropriate component.
+And it shouldn't just be a tuple, because two components may have the same fields but represent different things
+
+We can just declare a Component instance containing the fields, maybe even tuples of (field, type).
+Then we index the world with the component instance.
+
+
+
+Developing
+==========
+
+I need to strucutre this in a way that I can self-review.
+I should start with the simplest thing: component initialization and world initialization.
+
+Make, self-review.
+
+Next, creating entities
+self-review
+
+Next, adding systems
+self-review
+
+Next, filtering systems
+
 
 
 

@@ -12,3 +12,6 @@ class Component:
 
     def init_dataframe(self):
         return pd.DataFrame(columns=self.fields)
+
+    def __invert__(self):
+        return ('not', self)

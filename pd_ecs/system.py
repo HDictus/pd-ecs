@@ -7,13 +7,15 @@ class System:
     def __init__(self, world):
         world.add_system(self)
         self.world = world
-        for attr in dir(self):
-            attrvalue = getattr(self, attr)
-            if is_list_of_components(attrvalue):
-                print(attrvalue)
-                self._components = {attr: attrvalue}
-                setattr(self, attr, self._create_func(attrvalue))
+        if hasattr(self, filters):
+            self._setup_filters(filters)
         return
+
+    def _setup_filters(self, filters):
+        for name, components in self.filters():
+            assert not hasattr(self, name)
+            setattr(self, name, Filter(components, self.world))
+
 
     def _create_func(self, value):
         def attr_func():
@@ -30,6 +32,55 @@ def is_list_of_components(someattr):
     return (isinstance(someattr, list)
             and all([isinstance(item, Component)
                      for item in someattr]))
+
+
+class FakeFrame:
+
+    def __init__(self, frame):
+        self.frame = frame
+        return
+
+    def set_filter_indices(self, index):
+        self._indices = index
+
+    @property
+    def data(self):
+        self.data = self.frame.loc[self._indices]
+
+    def __getattribute__(self, key):
+        return getattr(self.data, key)
+
+    def __getitem__(self, key):
+        return self.data[key]
+
+    # def __setitem__(
+
+
+class Filter:
+
+    def __init__(self, components, world):
+        self.comps = {}
+        for component in components:
+            self._comps[component] = FakeFrame(world[component])
+
+        self.ids = self.filter_entities(**{component: world[component]}
+                                        for component in components)
+
+    def filter_entities(self, **components):
+        idslist = []
+        for comp in components:
+            if self._comps[component]:
+                idslist.append(component.index.values))
+        if len(idslist) == 0:
+            return []
+        ids = idslist[0]
+        for otherids in idslist:
+            ids = ids[np.isin(ids, otherids)]
+        return ids
+
+    def entities_added(self, **components):
+        self.ids += self.filter_entities(**components)
+        return
 
 
 # # TODO: this will be the most complex part, I'm not sure how to do it well.
