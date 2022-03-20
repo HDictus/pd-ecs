@@ -1,4 +1,4 @@
-Pandas-based ecs
+sPandas-based ecs
 ================
 
 
@@ -59,8 +59,51 @@ self-review
 Next, adding systems
 self-review
 
-Next, filtering systems
+TODO: self-review first!!!!
+
+Next, adding components to entities
+Next, removing components from entities
+review
+Next, processing events
 
 
 
+filters can wait, we can proceed with the filtered ids?
 
+Next, filtering systems: what is the best way?
+
+
+filters
+=======
+
+We can make filters work well with pandas by having every event return the modified components
+Component filters don't need to be coupled to systems.
+We can make a dict and pass it to world.
+Then the events return the modified world state.
+What about events called within other events?
+Ideally we would want the worldstate used to be updated.
+Can we make that happen? without wierd surprises?
+
+Whenever any event is called, the dict of dataframes it returns is applied to the world using its index.
+
+(systems could in principle just be event callbacks, but lets stick to convention for now)
+
+The risk we may run into is that someone will create a variable corresponding to a filter.
+When they call an event, that value will not be updated.
+So, we should instead use a function get_filter(filtername), which suggests that 
+
+maybe they can be a multiindexed dataframe. The modified form can be returned at the end of an event.
+Wait, since only a select system should directly change any given component... couldn't we handle updating the world that way?
+
+
+NDdata, e.g. maps?
+==================
+
+How should we handle multidimensional world data in an ECS? What if, for example. we wanted to model forest fires...
+each row of the space would be an entity, and each column represent an x position within that entity
+but actually each space is its own entity...
+volumetric data has a disadvantage here anyway - all components must be stored for all...
+
+instead, each patch has a position, just like anything else, then any relevant components.
+rendersystem can render patches by indexing an image with them... is that at all efficient?
+meh, that's for the user to decide I guess.
