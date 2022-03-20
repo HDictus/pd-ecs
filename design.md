@@ -31,6 +31,8 @@ This seems more complex in usage, but I don't know how feasible the preferred de
 ooh! we can do one better: we use add_entities(componentname=dict(varname=anarray))
 
 
+(we could make it that Component's init method makes a version with the arguments as fields, but a __subclass__ can't be intiialized?
+
 
 Declaring components
 ====================
@@ -58,8 +60,6 @@ self-review
 
 Next, adding systems
 self-review
-
-TODO: self-review first!!!!
 
 Next, adding components to entities
 Next, removing components from entities

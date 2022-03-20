@@ -1,4 +1,5 @@
 import pandas as pd
+from .exceptions import ComponentError
 
 
 class World:
@@ -18,18 +19,24 @@ class World:
         self.systems[system.__class__] = system
 
     def add_entities(self, component_values):
-        _validate_components(component_values)
-        frames = {component: pd.DataFrame(value)
-                  for component, value in component_values.items()}
-        num_entities = list(frames.values())[0].shape[0]
-        assert all(frame.shape[0] == num_entities
-                   for frame in frames.values())
+        num_entities, frames = _validate_components(component_values)
+
         indices = range(self.maxind, self.maxind + num_entities)
+        self._add_components(frames, indices)
+        self.maxind += num_entities
+
+    def _add_components(self, frames, indices):
         for comp, frame in frames.items():
             self._dict[comp] = pd.concat([
                 self[comp],
                 frame.assign(id=indices).set_index('id')])
-        self.maxind += num_entities
+
+    def give(self, ids, components):
+        num_entities, frames = _validate_components(
+            components, num_entities=len(ids))
+        self._add_components(frames, ids)
+        return
+
 
 # class EventManager:
 
@@ -43,8 +50,21 @@ class World:
 #                     getattr(system, key)(*args, **kwargs)
 #         return eventfunction
 
-def _validate_components(components):
+
+def _validate_components(components, num_entities=None):
     for component, data in components.items():
         for key in data:
             if key not in component.fields:
-                raise KeyError(f"field {key} does not belong to {component}")
+                raise ComponentError(
+                    f"field {key} does not belong to {component}")
+
+    frames = {component: pd.DataFrame(value)
+              for component, value in components.items()}
+    if num_entities is None:
+        num_entities = list(frames.values())[0].shape[0]
+    for component, frame in frames.items():
+        if frame.shape[0] != num_entities:
+            raise ComponentError(
+                f"number of values for component {component}, {frame.shape[0]} "
+                "differs from the expected number, {num_entities}")
+    return num_entities, frames
