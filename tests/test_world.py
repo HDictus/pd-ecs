@@ -100,3 +100,32 @@ def test_world_give():
     assert list(world[component1].index) == [5, 1, 4, 2]
     assert list(world[component1]['some']) == ['d', 'a', 'b', 'c']
     assert list(world[component1]['fields']) == ['b', 'g', 'e', 'f']
+
+
+def test_world_take():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
+
+    world = World(component1, component2)
+    world.add_entities(
+        {component1: {'some': ['b', 'c', 'd'],
+                      'fields': ['g', 'e', 'f']},
+         component2: {'field': [1, 2, 3]}})
+    world.take([1], component1)
+    assert list(world[component1].index) == [0, 2]
+
+def test_world_remove_entities():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
+    world = World(component1, component2)
+
+    world.add_entities(
+        {component2: {'field': [1, 2, 3, 4, 5]}})
+    world.add_entities(
+        {component1: {'some': ['d'],
+                      'fields': ['b']}})
+
+    world.remove_entities([3, 4, 5])
+    assert list(world[component2].index) == [0, 1, 2]
+    assert list(world[component1].index) == []
+    return

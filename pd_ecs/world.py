@@ -1,7 +1,9 @@
 import pandas as pd
+import numpy as np
 from .exceptions import ComponentError
 
 
+# TODO: docstrings and stuff, DUH!
 class World:
 
     def __init__(self, *components):
@@ -32,11 +34,22 @@ class World:
                 frame.assign(id=indices).set_index('id')])
 
     def give(self, ids, components):
+        """add given components to entities corresponding to ids"""
         num_entities, frames = _validate_components(
             components, num_entities=len(ids))
         self._add_components(frames, ids)
         return
 
+    def take(self, ids, *components):
+        """remove given components from entities corresponding to ids"""
+        for component in components:
+            self._dict[component].drop(ids, inplace=True)
+        return
+
+    def remove_entities(self, ids):
+        for comp, data in self._dict.items():
+            ids_in = np.intersect1d(ids, data.index)
+            data.drop(ids_in, inplace=True)
 
 # class EventManager:
 
@@ -50,11 +63,11 @@ class World:
 #                     getattr(system, key)(*args, **kwargs)
 #         return eventfunction
 
-
 def _validate_components(components, num_entities=None):
     for component, data in components.items():
         for key in data:
             if key not in component.fields:
+                print(component.fields)
                 raise ComponentError(
                     f"field {key} does not belong to {component}")
 
