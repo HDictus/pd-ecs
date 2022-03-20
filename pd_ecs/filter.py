@@ -15,11 +15,5 @@ class Filter:
             ids = ids[np.isin(ids, self.world[comp].index)]
         return ids
 
-    def __getitem__(self, key):
-        if key in self._comps:
-            c = self.world[key]
-            return c.loc[self.ids]
-        return KeyError
-
     def __contains__(self, key):
         return key in self._comps

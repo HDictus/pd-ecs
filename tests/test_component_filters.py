@@ -20,15 +20,6 @@ def test_fiter_filters_out_ones_that_dont_have():
 
     filt = Filter(comp1, comp2, world=mockwld)
 
-    pd.testing.assert_frame_equal(
-        filt[comp1],
-        mockwld[comp1].loc[[1, 2, 3]]
-    )
-    pd.testing.assert_frame_equal(
-        filt[comp2],
-        mockwld[comp2].loc[[1, 2, 3]]
-    )
-    assert comp3 not in filt
     assert np.allclose(filt.ids, [1, 2, 3])
     return
 
