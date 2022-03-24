@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import pytest as pyt
 from pd_ecs import Component, World, System
+from pd_ecs.exceptions import ComponentError
 
 
 
@@ -56,7 +57,75 @@ def test_world_add_entities():
     newentities_index = world[component2].index
     assert not any(np.isin(newentities_index, world[component1].index))
 
-    # wrong fields
-    with pyt.raises(KeyError):
+
+def test_world_add_invalid_entities():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
+
+    world = World(component1, component2)
+    # mismatched numbers of entities
+    with pyt.raises(ComponentError):
+        world.add_entities(
+            {component1: {'some': ['a', 'b'],
+                          'fields': ['d', 'e']},
+             component2: {'field': ['a']}})
+    # invalid component field
+    with pyt.raises(ComponentError):
         world.add_entities(
             {component2: {'fuld': [0, 0, 0]}})
+
+    # missing field?
+    # in the future, replace with type-dependent defaults
+    world.add_entities(
+            {component1: {'some': ['b', 'c']}})
+    assert np.isnan(world[component1]['fields']).all()
+
+
+def test_world_give():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
+
+    world = World(component1, component2)
+
+    world.add_entities(
+        {component2: {'field': [1, 2, 3, 4, 5]}})
+    world.add_entities(
+        {component1: {'some': ['d'],
+                      'fields': ['b']}})
+    world.give(
+        [1, 4, 2],
+        {component1: {'some': ['a', 'b', 'c'],
+                      'fields': ['g', 'e', 'f']}})
+
+    assert list(world[component1].index) == [5, 1, 4, 2]
+    assert list(world[component1]['some']) == ['d', 'a', 'b', 'c']
+    assert list(world[component1]['fields']) == ['b', 'g', 'e', 'f']
+
+
+def test_world_take():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
+
+    world = World(component1, component2)
+    world.add_entities(
+        {component1: {'some': ['b', 'c', 'd'],
+                      'fields': ['g', 'e', 'f']},
+         component2: {'field': [1, 2, 3]}})
+    world.take([1], component1)
+    assert list(world[component1].index) == [0, 2]
+
+def test_world_remove_entities():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
+    world = World(component1, component2)
+
+    world.add_entities(
+        {component2: {'field': [1, 2, 3, 4, 5]}})
+    world.add_entities(
+        {component1: {'some': ['d'],
+                      'fields': ['b']}})
+
+    world.remove_entities([3, 4, 5])
+    assert list(world[component2].index) == [0, 1, 2]
+    assert list(world[component1].index) == []
+    return

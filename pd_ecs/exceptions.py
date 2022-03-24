@@ -1,2 +1,2 @@
-class EntityError(Exception):
+class ComponentError(Exception):
     pass
