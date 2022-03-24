@@ -21,7 +21,7 @@ class World:
         self.systems[system.__class__] = system
 
     def add_entities(self, component_values):
-        num_entities, frames = _validate_components(component_values)
+        num_entities, frames = _component_dataframes(component_values)
 
         indices = range(self.maxind, self.maxind + num_entities)
         self._add_components(frames, indices)
@@ -35,7 +35,7 @@ class World:
 
     def give(self, ids, components):
         """add given components to entities corresponding to ids"""
-        num_entities, frames = _validate_components(
+        num_entities, frames = _component_dataframes(
             components, num_entities=len(ids))
         self._add_components(frames, ids)
         return
@@ -63,7 +63,7 @@ class World:
 #                     getattr(system, key)(*args, **kwargs)
 #         return eventfunction
 
-def _validate_components(components, num_entities=None):
+def _component_dataframes(components, num_entities=None):
     for component, data in components.items():
         for key in data:
             if key not in component.fields:
