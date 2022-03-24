@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from lazy import lazy
 from .exceptions import ComponentError
 
 
@@ -51,17 +52,27 @@ class World:
             ids_in = np.intersect1d(ids, data.index)
             data.drop(ids_in, inplace=True)
 
-# class EventManager:
+    @lazy
+    def events(self):
+        """calls any events, callign system's event functions"""
+        return EventManager(self)
 
-#     def __init__(self, world):
-#         self.world = world
 
-#     def __getattr__(self, key):
-#         def eventfunction(*args, **kwargs):
-#             for system in self.world.systems.values():
-#                 if hasattr(system, key):
-#                     getattr(system, key)(*args, **kwargs)
-#         return eventfunction
+class EventManager:
+    """passes event calls through to the world's systems"""
+
+    def __init__(self, world):
+        self.world = world
+
+    def __getattr__(self, key):
+
+        def eventfunction(*args, **kwargs):
+            for system in self.world.systems.values():
+                if hasattr(system, key):
+                    getattr(system, key)(*args, **kwargs)
+
+        return eventfunction
+
 
 def _component_dataframes(components, num_entities=None):
     for component, data in components.items():

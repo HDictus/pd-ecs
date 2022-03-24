@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import pytest as pyt
+from mock import MagicMock
 from pd_ecs import Component, World, System
 from pd_ecs.exceptions import ComponentError
 
@@ -129,3 +130,17 @@ def test_world_remove_entities():
     assert list(world[component2].index) == [0, 1, 2]
     assert list(world[component1].index) == []
     return
+
+
+def test_world_calls_system_events():
+    world = World()
+
+    class ASystem(System):
+
+        something_happens = MagicMock()
+
+    sys = ASystem(world)
+
+    world.events.something_happens('banana', 'fork')
+
+    sys.something_happens.assert_called_with('banana', 'fork')
