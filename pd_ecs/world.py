@@ -71,6 +71,7 @@ class EventManager:
                 if hasattr(system, key):
                     getattr(system, key)(*args, **kwargs)
 
+        setattr(self, key, eventfunction)
         return eventfunction
 
 
