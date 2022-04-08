@@ -144,7 +144,12 @@ if __name__ == "__main__":
     plt.show()
     drought_index = read_PDSI(datadir + "adjustedPDSI.txt")
     print(drought_index)
+    arr = []
     for year in range(START_YEAR, END_YEAR):
-        plt.imshow(yield_in_year(year, z, y, drought_index))
-        plt.title(f'crop yield {year} AD')
-        plt.show()
+    #     arr.append(yield_in_year(year, z, y, drought_index))
+    #     plt.imshow(arr)
+    #     plt.colorbar()
+    #     plt.title(f'crop yield {year} AD')
+    #     plt.show()
+        print((f'crop yield {year} AD')
+    # np.save(np.concatenate(arr), "yields 800-

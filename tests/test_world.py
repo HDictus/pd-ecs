@@ -52,11 +52,34 @@ def test_world_add_entities():
 
     # check they have unique ids
 
-    world.add_entities(
+    new = world.add_entities(
         {component2: {'field': [1, 8, 9]}})
 
     newentities_index = world[component2].index
     assert not any(np.isin(newentities_index, world[component1].index))
+    assert new == [4, 5, 6]
+
+def test_world_add_single_entity():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
+
+    world = World(component1, component2)
+
+    world.add_entities(
+        {component1: {'some': 1,
+                      'fields': 5}})
+
+
+def test_world_enties_single_value_extrapolated():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
+
+    world = World(component1, component2)
+
+    world.add_entities(
+        {component1: {'some': 1,
+                      'fields': 5},
+         component2: ['a', 'b', 'c']})
 
 
 def test_world_add_invalid_entities():

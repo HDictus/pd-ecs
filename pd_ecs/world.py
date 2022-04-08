@@ -27,6 +27,7 @@ class World:
         indices = range(self.maxind, self.maxind + num_entities)
         self._add_components(frames, indices)
         self.maxind += num_entities
+        return list(indices)
 
     def _add_components(self, frames, indices):
         for comp, frame in frames.items():
