@@ -22,10 +22,10 @@ jobs:
         python -m pip install --upgrade pip
         pip install pylint pycodestyle pytest
         pip install .
+    - name: Test with pytest
+      run: |
+        python -m pytest
     - name: Lint with pylint, pycodestyle, and pydocstyle
       run: |
         pylint pd_ecs
         pycodestyle pd_ecs
-    - name: Test with pytest
-      run: |
-        python -m pytest
