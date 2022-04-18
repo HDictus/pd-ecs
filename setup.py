@@ -29,6 +29,8 @@ setup(
     install_requires=[
         'numpy',
         'pandas',
+        'lazy',
+        'mock',
     ],
     packages=find_packages(),
     python_requires=">=3.6",
