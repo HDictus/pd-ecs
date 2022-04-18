@@ -79,7 +79,7 @@ def test_world_enties_single_value_extrapolated():
     world.add_entities(
         {component1: {'some': 1,
                       'fields': 5},
-         component2: ['a', 'b', 'c']})
+         component2: {'field': ['a', 'b', 'c']}})
 
 
 def test_world_add_invalid_entities():

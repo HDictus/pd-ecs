@@ -22,9 +22,9 @@ class World:
         self.systems[system.__class__] = system
 
     def add_entities(self, component_values):
-        num_entities, frames = _component_dataframes(component_values)
-
+        num_entities = _number_of_entities(component_values)
         indices = range(self.maxind, self.maxind + num_entities)
+        frames = _component_dataframes(component_values, indices)
         self._add_components(frames, indices)
         self.maxind += num_entities
         return list(indices)
@@ -37,8 +37,7 @@ class World:
 
     def give(self, ids, components):
         """add given components to entities corresponding to ids"""
-        num_entities, frames = _component_dataframes(
-            components, num_entities=len(ids))
+        frames = _component_dataframes(components, indices=ids)
         self._add_components(frames, ids)
         return
 
@@ -76,7 +75,22 @@ class EventManager:
         return eventfunction
 
 
-def _component_dataframes(components, num_entities=None):
+def _number_of_entities(components):
+    nentities = None
+    for comp, data in components.items():
+        for k, v in data.items():
+            if isinstance(v, (list, tuple)):
+                if nentities is None:
+                    nentities = len(v)
+                else:
+                    if len(v) != nentities:
+                        raise ComponentError(
+                            f"could not interperet number of entities for components."
+                            f"length of {k}, {v} is not equal to {nentities}")
+    return nentities or 1
+
+
+def _component_dataframes(components, indices):
     for component, data in components.items():
         for key in data:
             if key not in component.fields:
@@ -84,13 +98,6 @@ def _component_dataframes(components, num_entities=None):
                 raise ComponentError(
                     f"field {key} does not belong to {component}")
 
-    frames = {component: pd.DataFrame(value)
+    frames = {component: pd.DataFrame(value, index=indices)
               for component, value in components.items()}
-    if num_entities is None:
-        num_entities = list(frames.values())[0].shape[0]
-    for component, frame in frames.items():
-        if frame.shape[0] != num_entities:
-            raise ComponentError(
-                f"number of values for component {component}, {frame.shape[0]} "
-                "differs from the expected number, {num_entities}")
-    return num_entities, frames
+    return frames
