@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from lazy import lazy
 from .exceptions import ComponentError
+from collections import Iterable
 
 
 # TODO: docstrings and stuff, DUH!
@@ -22,6 +23,7 @@ class World:
         self.systems[system.__class__] = system
 
     def add_entities(self, component_values):
+
         num_entities = _number_of_entities(component_values)
         indices = range(self.maxind, self.maxind + num_entities)
         frames = _component_dataframes(component_values, indices)
@@ -76,10 +78,11 @@ class EventManager:
 
 
 def _number_of_entities(components):
+
     nentities = None
     for comp, data in components.items():
         for k, v in data.items():
-            if isinstance(v, (list, tuple)):
+            if isinstance(v, Iterable):
                 if nentities is None:
                     nentities = len(v)
                 else:

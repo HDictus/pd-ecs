@@ -49,7 +49,6 @@ def test_world_add_entities():
         pd.DataFrame({'some': [1, 2, 3, 4],
                       'fields': [5, 4, 2, 1]}))
 
-
     # check they have unique ids
 
     new = world.add_entities(
@@ -58,6 +57,38 @@ def test_world_add_entities():
     newentities_index = world[component2].index
     assert not any(np.isin(newentities_index, world[component1].index))
     assert new == [4, 5, 6]
+
+def test_world_add_entities_array():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
+
+    world = World(component1, component2)
+
+    # check that it works with tuples and arrays
+    world.add_entities(
+        {component1: {'some': np.array([1, 2, 3, 4]),
+                      'fields': np.array([5, 4, 2, 1])}})
+
+    pd.testing.assert_frame_equal(
+        world[component1],
+        pd.DataFrame({'some': [1, 2, 3, 4],
+                      'fields': [5, 4, 2, 1]}))
+
+def world_add_entities_tuple():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
+
+    world = World(component1, component2)
+
+    world.add_entities(
+        {component1: {'some': (1, 2, 3, 4),
+                      'fields': (5, 4, 2, 1)}})
+
+    pd.testing.assert_frame_equal(
+        world[component1],
+        pd.DataFrame({'some': [1, 2, 3, 4],
+                      'fields': [5, 4, 2, 1]}))
+
 
 def test_world_add_single_entity():
     component1 = Component('some', 'fields')
