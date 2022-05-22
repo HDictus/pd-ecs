@@ -135,6 +135,15 @@ def test_world_add_invalid_entities():
             {component1: {'some': ['b', 'c']}})
     assert np.isnan(world[component1]['fields']).all()
 
+def test_world_add_empty():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
+
+    world = World(component1, component2)
+    # mismatched numbers of entities
+    world.add_entities(
+        {component1: {'some': [], 'fields': []}})
+    assert(world[component1].shape[0] == 0)
 
 def test_world_give():
     component1 = Component('some', 'fields')

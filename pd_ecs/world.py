@@ -23,7 +23,6 @@ class World:
         self.systems[system.__class__] = system
 
     def add_entities(self, component_values):
-
         num_entities = _number_of_entities(component_values)
         indices = range(self.maxind, self.maxind + num_entities)
         frames = _component_dataframes(component_values, indices)
@@ -90,6 +89,8 @@ def _number_of_entities(components):
                         raise ComponentError(
                             f"could not interperet number of entities for components."
                             f"length of {k}, {v} is not equal to {nentities}")
+    if nentities == 0:
+        return 0
     return nentities or 1
 
 
