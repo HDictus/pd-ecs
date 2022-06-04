@@ -10,5 +10,14 @@ class System:
     def __init__(self, world):
         world.add_system(self)
         self.world = world
-        for key, fields in self.filters.items():
-            setattr(self, key, Filter(*fields, world=world))
+        self._filters = {
+            filt: Filter(*comps, world=world)
+            for filt, comps in self.filters.items()}
+
+    def __getattr__(self, key):
+        """
+        A System contains various filters, represented as dataframes
+        """
+        if key in self._filters:
+            return self._filters[key].dataframe()
+        return super().__getattr__(self, key)

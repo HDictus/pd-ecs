@@ -20,4 +20,4 @@ class Component:
         """
         Returns an empty dataframe with the field columns.
         """
-        return pd.DataFrame(columns=self.fields, dtype=int)
+        return pd.DataFrame(columns=self.fields + ('id',), dtype=int).set_index('id')

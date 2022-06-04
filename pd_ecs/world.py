@@ -10,8 +10,7 @@ class World:
 
     def __init__(self, *components):
         self._dict = {}
-        for component in components:
-            self._dict[component] = component.init_dataframe()
+        self._initialize_state(components)
         self.systems = {}
         self.maxind = 0
         return
@@ -21,6 +20,23 @@ class World:
 
     def add_system(self, system):
         self.systems[system.__class__] = system
+
+    def _initialize_state(self, components):
+        for component in components:
+            self._dict[component] = component.init_dataframe()
+
+    def set_state(self, state: dict):
+        """
+        Set the state of the world (entities, components) to the provided value.
+
+        state: of the form:
+            {<component>: <dataframe>}
+            where component is a Component and dataframe is a dataframe of
+            component values, with entity ids as the index
+        """
+        self._initialize_state(list(self._dict.keys()))
+        for k, v in state.items():
+            self._add_component(k, v, v.index)
 
     def add_entities(self, component_values):
         num_entities = _number_of_entities(component_values)
@@ -32,9 +48,21 @@ class World:
 
     def _add_components(self, frames, indices):
         for comp, frame in frames.items():
-            self._dict[comp] = pd.concat([
-                self[comp],
-                frame.assign(id=indices).set_index('id')])
+            self._add_component(comp, frame, indices)
+
+    def _add_component(self, comp, frame, indices):
+        if comp not in self._dict:
+            raise ComponentError(
+                f"Component {comp} does not exist in this world")
+
+        for key in frame:
+            if key not in comp.fields:
+                raise ComponentError(
+                    f"field {key} does not belong to {comp}")
+
+        self._dict[comp] = pd.concat([
+            self[comp],
+            frame.assign(id=indices).set_index('id')])
 
     def give(self, ids, components):
         """add given components to entities corresponding to ids"""
@@ -95,13 +123,6 @@ def _number_of_entities(components):
 
 
 def _component_dataframes(components, indices):
-    for component, data in components.items():
-        for key in data:
-            if key not in component.fields:
-                print(component.fields)
-                raise ComponentError(
-                    f"field {key} does not belong to {component}")
-
     frames = {component: pd.DataFrame(value, index=indices)
               for component, value in components.items()}
     return frames
