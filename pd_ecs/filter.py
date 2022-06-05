@@ -1,13 +1,21 @@
+"""
+The Filter object filters entities and components by specified criteria.
+"""
 import numpy as np
 import pandas as pd
 
 
 class Filter:
+    """Filter entities which have the specified components"""
 
     def __init__(self, *components, world):
+        """
+        Arguments:
+            components: the components required to be part of this filter
+            world: the world the filter belongs to
+        """
         self._comps = components
         self.world = world
-        return
 
     @property
     def ids(self):

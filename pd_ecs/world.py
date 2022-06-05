@@ -1,27 +1,47 @@
+"""
+The World stores and manages the state and events of the simulation.
+
+It is defined as consisting of a certain set of component types.
+Systems are added to the world.
+World.events.<event_name> calls that event for all systems in the world
+"""
+from collections.abc import Iterable
 import pandas as pd
 import numpy as np
 from lazy import lazy
 from .exceptions import ComponentError
-from collections import Iterable
+from .component import Component
+from .system import System
 
 
-# TODO: docstrings and stuff, DUH!
 class World:
+    """
+    The World stores and manages the state and events of the simulation.
 
-    def __init__(self, *components):
+    It is defined as consisting of a certain set of component types.
+    Systems are added to the world.
+    World.events.<event_name> calls that event for all systems in the world
+    """
+
+    def __init__(self, *components: Component):
+        """
+        components: component types the world consists of
+        """
         self._dict = {}
         self._initialize_state(components)
         self.systems = {}
         self.maxind = 0
-        return
 
     def __getitem__(self, key):
         return self._dict[key]
 
-    def add_system(self, system):
+    def add_system(self, system: System):
+        """Add an initialized system to the world.
+        This is usually called in the system's init method - it is not
+        necessary to manually do so again"""
         self.systems[system.__class__] = system
 
-    def _initialize_state(self, components):
+    def _initialize_state(self, components: dict):
         for component in components:
             self._dict[component] = component.init_dataframe()
 
@@ -29,16 +49,26 @@ class World:
         """
         Set the state of the world (entities, components) to the provided value.
 
-        state: of the form:
-            {<component>: <dataframe>}
-            where component is a Component and dataframe is a dataframe of
-            component values, with entity ids as the index
+        Arguments:
+            state: of the form:
+                {<component>: <dataframe>}
+                where component is a Component and dataframe is a dataframe of
+                component values, with entity ids as the index
         """
         self._initialize_state(list(self._dict.keys()))
-        for k, v in state.items():
-            self._add_component(k, v, v.index)
+        for component, data in state.items():
+            self._add_component(component, data, data.index)
 
-    def add_entities(self, component_values):
+    def add_entities(self, component_values: dict):
+        """
+        Add entities to the world.
+        Arguments:
+            component_values is a dict of dicts {<component>: {<field>: values}}
+                the columns of the dataframe are the fields of the components
+                the index is ignored
+                (note that dict of list of dicts or dict of dataframes also work,
+                if it can be converted to pd.DataFrame it can be passed)
+        """
         num_entities = _number_of_entities(component_values)
         indices = range(self.maxind, self.maxind + num_entities)
         frames = _component_dataframes(component_values, indices)
@@ -65,19 +95,24 @@ class World:
             frame.set_index(np.array(indices))])
 
     def give(self, ids, components):
-        """add given components to entities corresponding to ids"""
+        """Add given components to entities corresponding to ids."""
         frames = _component_dataframes(components, indices=ids)
         self._add_components(frames, ids)
-        return
 
     def take(self, ids, *components):
-        """remove given components from entities corresponding to ids"""
+        """Remove given components from entities corresponding to ids."""
         for component in components:
             self._dict[component].drop(ids, inplace=True)
-        return
 
     def remove_entities(self, ids):
-        for comp, data in self._dict.items():
+        """
+        Removes given entities from the world.
+
+        Arguments:
+            ids: the entity ids, corresponding to the indices of rows
+                corresponding to these entities in the component dataframes.
+        """
+        for _, data in self._dict.items():
             ids_in = np.intersect1d(ids, data.index)
             data.drop(ids_in, inplace=True)
 
@@ -87,6 +122,7 @@ class World:
         return EventManager(self)
 
 
+# pylint: disable=too-few-public-methods
 class EventManager:
     """passes event calls through to the world's systems"""
 
@@ -105,18 +141,19 @@ class EventManager:
 
 
 def _number_of_entities(components):
-
+    """gets the number of entities suggested by component data"""
     nentities = None
-    for comp, data in components.items():
-        for k, v in data.items():
-            if isinstance(v, Iterable):
+    for _, data in components.items():
+        for field, values in data.items():
+            if isinstance(values, Iterable):
                 if nentities is None:
-                    nentities = len(v)
+                    nentities = len(values)
                 else:
-                    if len(v) != nentities:
+                    if len(values) != nentities:
                         raise ComponentError(
-                            f"could not interperet number of entities for components."
-                            f"length of {k}, {v} is not equal to {nentities}")
+                            f"could not interperet number of entities for "
+                            f"components. length of {field}, {values} is not "
+                            f"equal to {nentities}")
     if nentities == 0:
         return 0
     return nentities or 1

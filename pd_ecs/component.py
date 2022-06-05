@@ -2,6 +2,7 @@
 import pandas as pd
 
 
+# pylint: disable=too-few-public-methods
 class Component:
     """
     A component represents a set of variables belonging to a given entity.
@@ -14,7 +15,6 @@ class Component:
             fields: names of component variables (str)
         """
         self.fields = fields
-        return
 
     def init_dataframe(self):
         """
