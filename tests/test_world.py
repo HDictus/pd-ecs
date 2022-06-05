@@ -15,10 +15,10 @@ def test_world_has_components():
     print(world[component1])
     pd.testing.assert_frame_equal(
         world[component1],
-        pd.DataFrame(columns=['some', 'fields', 'id'], dtype=int).set_index('id'))
+        pd.DataFrame(columns=['some', 'fields'], dtype=int))
     pd.testing.assert_frame_equal(
         world[component2],
-        pd.DataFrame(columns=['field', 'id'], dtype=int).set_index('id'))
+        pd.DataFrame(columns=['field'], dtype=int))
 
 
 def test_world_has_systems():
@@ -46,8 +46,7 @@ def test_world_add_entities():
     pd.testing.assert_frame_equal(
         world[component1],
         pd.DataFrame({'some': [1, 2, 3, 4],
-                      'fields': [5, 4, 2, 1],
-                      'id': [0, 1, 2, 3]}).set_index('id'))
+                      'fields': [5, 4, 2, 1]}))
 
     # check they have unique ids
 
@@ -72,8 +71,7 @@ def test_world_add_entities_array():
     pd.testing.assert_frame_equal(
         world[component1],
         pd.DataFrame({'some': [1, 2, 3, 4],
-                      'fields': [5, 4, 2, 1],
-                      'id': [0, 1, 2, 3]}).set_index('id'))
+                      'fields': [5, 4, 2, 1]}))
 
 def world_add_entities_tuple():
     component1 = Component('some', 'fields')
@@ -216,12 +214,9 @@ def test_world_set_state():
     comp3 = Component('c')
     world = World(comp1, comp2, comp3)
     state = {
-        comp1: pd.DataFrame({'id': [0, 1, 2, 3, 4, 5, 6, 7],
-                             'a': [0, 1, 2, 3, 4, 5, 6, 7]}).set_index('id'),
-        comp2: pd.DataFrame({'id': [1, 2, 3, 10],
-                             'b': [1, 2, 3, 10]}).set_index('id'),
-        comp3: pd.DataFrame({'id': [0, 1, 2, 4, 5, 6],
-                             'c': [1, 2, 3, 4, 5, 6]}).set_index('id')}
+        comp1: pd.DataFrame({'a': [0, 1, 2, 3, 4, 5, 6, 7]}),
+        comp2: pd.DataFrame({'b': [1, 2, 3, 10]}),
+        comp3: pd.DataFrame({'c': [1, 2, 3, 4, 5, 6]})}
     world.set_state(state)
     for comp in state:
         pd.testing.assert_frame_equal(world[comp], state[comp])
@@ -233,12 +228,9 @@ def test_world_set_state_invalid_components():
     comp3 = Component('c')
     world = World(comp1, comp2)
     state = {
-        comp1: pd.DataFrame({'id': [0, 1, 2, 3, 4, 5, 6, 7],
-                             'a': [0, 1, 2, 3, 4, 5, 6, 7]}).set_index('id'),
-        comp2: pd.DataFrame({'id': [1, 2, 3, 10],
-                             'b': [1, 2, 3, 10]}).set_index('id'),
-        comp3: pd.DataFrame({'id': [0, 1, 2, 4, 5, 6],
-                             'c': [1, 2, 3, 4, 5, 6]}).set_index('id')}
+        comp1: pd.DataFrame({'a': [0, 1, 2, 3, 4, 5, 6, 7]}),
+        comp2: pd.DataFrame({'b': [1, 2, 3, 10]}),
+        comp3: pd.DataFrame({'c': [1, 2, 3, 4, 5, 6]})}
     with pyt.raises(ComponentError):
         world.set_state(state)
 
@@ -247,7 +239,6 @@ def test_world_set_state_invalid_fields():
     comp1 = Component('a')
     world = World(comp1)
     state = {
-        comp1: pd.DataFrame({'id': [0, 1, 2, 3, 4, 5, 6, 7],
-                             'c': [0, 1, 2, 3, 4, 5, 6, 7]}).set_index('id')}
+        comp1: pd.DataFrame({'c': [0, 1, 2, 3, 4, 5, 6, 7]})}
     with pyt.raises(ComponentError):
         world.set_state(state)

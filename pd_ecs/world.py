@@ -62,7 +62,7 @@ class World:
 
         self._dict[comp] = pd.concat([
             self[comp],
-            frame.assign(id=indices).set_index('id')])
+            frame.set_index(np.array(indices))])
 
     def give(self, ids, components):
         """add given components to entities corresponding to ids"""
