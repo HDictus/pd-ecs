@@ -1,54 +1,118 @@
+"""
+The World stores and manages the state and events of the simulation.
+
+It is defined as consisting of a certain set of component types.
+Systems are added to the world.
+World.events.<event_name> calls that event for all systems in the world
+"""
+from collections.abc import Iterable
 import pandas as pd
 import numpy as np
 from lazy import lazy
 from .exceptions import ComponentError
+from .component import Component
+from .system import System
 
 
-# TODO: docstrings and stuff, DUH!
 class World:
+    """
+    The World stores and manages the state and events of the simulation.
 
-    def __init__(self, *components):
-        self._dict = {}
-        for component in components:
-            self._dict[component] = component.init_dataframe()
-        self.systems = {}
+    It is defined as consisting of a certain set of component types.
+    Systems are added to the world.
+    World.events.<event_name> calls that event for all systems in the world
+    """
+
+    def __init__(self, *components: Component):
+        """
+        components: component types the world consists of
+        """
+        self._dict: dict = {}
+        self._initialize_state(components)
+        self.systems: dict = {}
         self.maxind = 0
-        return
 
     def __getitem__(self, key):
         return self._dict[key]
 
-    def add_system(self, system):
+    def add_system(self, system: System):
+        """Add an initialized system to the world.
+        This is usually called in the system's init method - it is not
+        necessary to manually do so again"""
         self.systems[system.__class__] = system
 
-    def add_entities(self, component_values):
-        num_entities, frames = _component_dataframes(component_values)
+    def _initialize_state(self, components: Iterable):
+        for component in components:
+            self._dict[component] = component.init_dataframe()
 
+    def set_state(self, state: dict):
+        """
+        Set the state of the world (entities, components) to the provided value
+
+        Arguments:
+            state: of the form:
+                {<component>: <dataframe>}
+                where component is a Component and dataframe is a dataframe of
+                component values, with entity ids as the index
+        """
+        self._initialize_state(list(self._dict.keys()))
+        for component, data in state.items():
+            self._add_component(component, data, data.index)
+
+    def add_entities(self, component_values: dict):
+        """
+        Add entities to the world.
+        Arguments:
+            component_values is a dict of dicts  of the form
+                {<component>: {<field>: values}}
+                the columns of the dataframe are the fields of the components
+                the index is ignored
+                a dataframe or list of dicts also works
+        """
+        num_entities = _number_of_entities(component_values)
         indices = range(self.maxind, self.maxind + num_entities)
+        frames = _component_dataframes(component_values, indices)
         self._add_components(frames, indices)
         self.maxind += num_entities
+        return list(indices)
 
     def _add_components(self, frames, indices):
         for comp, frame in frames.items():
-            self._dict[comp] = pd.concat([
-                self[comp],
-                frame.assign(id=indices).set_index('id')])
+            self._add_component(comp, frame, indices)
+
+    def _add_component(self, comp, frame, indices):
+        if comp not in self._dict:
+            raise ComponentError(
+                f"Component {comp} does not exist in this world")
+
+        for key in frame:
+            if key not in comp.fields:
+                raise ComponentError(
+                    f"field {key} does not belong to {comp}")
+
+        self._dict[comp] = pd.concat([
+            self[comp],
+            frame.set_index(np.array(indices))])
 
     def give(self, ids, components):
-        """add given components to entities corresponding to ids"""
-        num_entities, frames = _component_dataframes(
-            components, num_entities=len(ids))
+        """Add given components to entities corresponding to ids."""
+        frames = _component_dataframes(components, indices=ids)
         self._add_components(frames, ids)
-        return
 
     def take(self, ids, *components):
-        """remove given components from entities corresponding to ids"""
+        """Remove given components from entities corresponding to ids."""
         for component in components:
             self._dict[component].drop(ids, inplace=True)
-        return
 
     def remove_entities(self, ids):
-        for comp, data in self._dict.items():
+        """
+        Removes given entities from the world.
+
+        Arguments:
+            ids: the entity ids, corresponding to the indices of rows
+                corresponding to these entities in the component dataframes.
+        """
+        for _, data in self._dict.items():
             ids_in = np.intersect1d(ids, data.index)
             data.drop(ids_in, inplace=True)
 
@@ -58,6 +122,7 @@ class World:
         return EventManager(self)
 
 
+# pylint: disable=too-few-public-methods
 class EventManager:
     """passes event calls through to the world's systems"""
 
@@ -75,21 +140,26 @@ class EventManager:
         return eventfunction
 
 
-def _component_dataframes(components, num_entities=None):
-    for component, data in components.items():
-        for key in data:
-            if key not in component.fields:
-                print(component.fields)
-                raise ComponentError(
-                    f"field {key} does not belong to {component}")
+def _number_of_entities(components):
+    """gets the number of entities suggested by component data"""
+    nentities = None
+    for _, data in components.items():
+        for field, values in data.items():
+            if isinstance(values, Iterable):
+                if nentities is None:
+                    nentities = len(values)
+                else:
+                    if len(values) != nentities:
+                        raise ComponentError(
+                            f"could not interperet number of entities for "
+                            f"components. length of {field}, {values} is not "
+                            f"equal to {nentities}")
+    if nentities == 0:
+        return 0
+    return nentities or 1
 
-    frames = {component: pd.DataFrame(value)
+
+def _component_dataframes(components, indices):
+    frames = {component: pd.DataFrame(value, index=indices)
               for component, value in components.items()}
-    if num_entities is None:
-        num_entities = list(frames.values())[0].shape[0]
-    for component, frame in frames.items():
-        if frame.shape[0] != num_entities:
-            raise ComponentError(
-                f"number of values for component {component}, {frame.shape[0]} "
-                "differs from the expected number, {num_entities}")
-    return num_entities, frames
+    return frames

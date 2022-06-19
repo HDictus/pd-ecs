@@ -107,3 +107,17 @@ volumetric data has a disadvantage here anyway - all components must be stored f
 instead, each patch has a position, just like anything else, then any relevant components.
 rendersystem can render patches by indexing an image with them... is that at all efficient?
 meh, that's for the user to decide I guess.
+
+
+event names?
+============
+
+One unfortunate thing with this structure is that it leads to unintuitive names for functions.
+e.g. year_passes determining when choldren move out...
+
+
+
+TODO: when you initialize with a nonexistent component, the error should be obvious
+(OR, should any use of a component add it to the world?)
+
+TODO: when an error is raised in the invocation of an event, the error message should tell us which event on which system

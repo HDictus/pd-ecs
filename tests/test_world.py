@@ -6,7 +6,6 @@ from pd_ecs import Component, World, System
 from pd_ecs.exceptions import ComponentError
 
 
-
 def test_world_has_components():
     component1 = Component('some', 'fields')
     component2 = Component('field')
@@ -49,14 +48,68 @@ def test_world_add_entities():
         pd.DataFrame({'some': [1, 2, 3, 4],
                       'fields': [5, 4, 2, 1]}))
 
-
     # check they have unique ids
 
-    world.add_entities(
+    new = world.add_entities(
         {component2: {'field': [1, 8, 9]}})
 
     newentities_index = world[component2].index
     assert not any(np.isin(newentities_index, world[component1].index))
+    assert new == [4, 5, 6]
+
+def test_world_add_entities_array():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
+
+    world = World(component1, component2)
+
+    # check that it works with tuples and arrays
+    world.add_entities(
+        {component1: {'some': np.array([1, 2, 3, 4]),
+                      'fields': np.array([5, 4, 2, 1])}})
+
+    pd.testing.assert_frame_equal(
+        world[component1],
+        pd.DataFrame({'some': [1, 2, 3, 4],
+                      'fields': [5, 4, 2, 1]}))
+
+def world_add_entities_tuple():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
+
+    world = World(component1, component2)
+
+    world.add_entities(
+        {component1: {'some': (1, 2, 3, 4),
+                      'fields': (5, 4, 2, 1)}})
+
+    pd.testing.assert_frame_equal(
+        world[component1],
+        pd.DataFrame({'some': [1, 2, 3, 4],
+                      'fields': [5, 4, 2, 1]}))
+
+
+def test_world_add_single_entity():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
+
+    world = World(component1, component2)
+
+    world.add_entities(
+        {component1: {'some': 1,
+                      'fields': 5}})
+
+
+def test_world_enties_single_value_extrapolated():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
+
+    world = World(component1, component2)
+
+    world.add_entities(
+        {component1: {'some': 1,
+                      'fields': 5},
+         component2: {'field': ['a', 'b', 'c']}})
 
 
 def test_world_add_invalid_entities():
@@ -81,6 +134,15 @@ def test_world_add_invalid_entities():
             {component1: {'some': ['b', 'c']}})
     assert np.isnan(world[component1]['fields']).all()
 
+def test_world_add_empty():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
+
+    world = World(component1, component2)
+    # mismatched numbers of entities
+    world.add_entities(
+        {component1: {'some': [], 'fields': []}})
+    assert(world[component1].shape[0] == 0)
 
 def test_world_give():
     component1 = Component('some', 'fields')
@@ -144,3 +206,39 @@ def test_world_calls_system_events():
     world.events.something_happens('banana', 'fork')
 
     sys.something_happens.assert_called_with('banana', 'fork')
+
+
+def test_world_set_state():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    comp3 = Component('c')
+    world = World(comp1, comp2, comp3)
+    state = {
+        comp1: pd.DataFrame({'a': [0, 1, 2, 3, 4, 5, 6, 7]}),
+        comp2: pd.DataFrame({'b': [1, 2, 3, 10]}),
+        comp3: pd.DataFrame({'c': [1, 2, 3, 4, 5, 6]})}
+    world.set_state(state)
+    for comp in state:
+        pd.testing.assert_frame_equal(world[comp], state[comp])
+
+
+def test_world_set_state_invalid_components():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    comp3 = Component('c')
+    world = World(comp1, comp2)
+    state = {
+        comp1: pd.DataFrame({'a': [0, 1, 2, 3, 4, 5, 6, 7]}),
+        comp2: pd.DataFrame({'b': [1, 2, 3, 10]}),
+        comp3: pd.DataFrame({'c': [1, 2, 3, 4, 5, 6]})}
+    with pyt.raises(ComponentError):
+        world.set_state(state)
+
+
+def test_world_set_state_invalid_fields():
+    comp1 = Component('a')
+    world = World(comp1)
+    state = {
+        comp1: pd.DataFrame({'c': [0, 1, 2, 3, 4, 5, 6, 7]})}
+    with pyt.raises(ComponentError):
+        world.set_state(state)

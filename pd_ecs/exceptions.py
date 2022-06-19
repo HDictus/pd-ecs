@@ -1,2 +1,7 @@
+"""Exceptions for ecs."""
+
+
 class ComponentError(Exception):
-    pass
+    """
+    Error raised for inappropriate component operations
+    """
