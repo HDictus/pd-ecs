@@ -27,9 +27,9 @@ class World:
         """
         components: component types the world consists of
         """
-        self._dict = {}
+        self._dict: dict = {}
         self._initialize_state(components)
-        self.systems = {}
+        self.systems: dict = {}
         self.maxind = 0
 
     def __getitem__(self, key):
@@ -41,13 +41,13 @@ class World:
         necessary to manually do so again"""
         self.systems[system.__class__] = system
 
-    def _initialize_state(self, components: dict):
+    def _initialize_state(self, components: Iterable):
         for component in components:
             self._dict[component] = component.init_dataframe()
 
     def set_state(self, state: dict):
         """
-        Set the state of the world (entities, components) to the provided value.
+        Set the state of the world (entities, components) to the provided value
 
         Arguments:
             state: of the form:
@@ -63,11 +63,11 @@ class World:
         """
         Add entities to the world.
         Arguments:
-            component_values is a dict of dicts {<component>: {<field>: values}}
+            component_values is a dict of dicts  of the form
+                {<component>: {<field>: values}}
                 the columns of the dataframe are the fields of the components
                 the index is ignored
-                (note that dict of list of dicts or dict of dataframes also work,
-                if it can be converted to pd.DataFrame it can be passed)
+                a dataframe or list of dicts also works
         """
         num_entities = _number_of_entities(component_values)
         indices = range(self.maxind, self.maxind + num_entities)
