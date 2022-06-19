@@ -53,4 +53,4 @@ class System:
         """
         A System contains various filters, represented as dataframes
         """
-        return self._filters[key]
+        return self._filters[key].dataframe

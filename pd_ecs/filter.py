@@ -3,7 +3,7 @@ The Filter object filters entities and components by specified criteria.
 """
 import numpy as np
 import pandas as pd
-
+from lazy import lazy
 
 # class _MocLoc:
 
@@ -18,6 +18,39 @@ import pandas as pd
 #             frame.loc[key] = value
 
 
+class _FilteredFrame(pd.DataFrame):
+
+    def __init__(self, data, filt):
+        self.filt = filt
+        self._update = True
+        super().__init__(data)
+
+    def __setattr__(self, key, value):
+        if key not in ('filt', '_update'):
+            super().__setattr__(key, value)
+        else:
+            object.__setattr__(self, key, value)
+
+    def enable_update(self):
+        self._update = True
+
+    def disable_update(self):
+        self._update = False
+
+    def __setitem__(self, key, value):
+        update = self._update
+        self.disable_update()
+        super().__setitem__(key, value)
+        self.enable_update()
+        if update:
+            self.filt.update_world(self)
+
+    def __getitem__(self, key):
+        if self.update:
+            self.filt.update_filteredframe(self)
+        return super().__getitem__(key)
+
+
 class Filter:
     """Filter entities which have the specified components"""
 
@@ -29,17 +62,6 @@ class Filter:
         """
         self._comps = components
         self.world = world
-        self.tracked_data = {
-            comp: world[comp]
-            for comp in components}
-
-    @property
-    def loc(self):
-        return pd.core.indexing._LocIndexer('loc', self)
-
-    @property
-    def iloc(self):
-        return pd.core.indexing._iLocIndexer('iloc', self)
 
     @property
     def ids(self):
@@ -50,29 +72,31 @@ class Filter:
         return ids
 
     @property
+    def tracked_data(self):
+        return {comp: self.world[comp] for comp in self._comps}
+
+    def update_world(self, filtframe):
+        filtframe.disable_update()
+        for col in filtframe:
+            self.world[col[0]].loc[self.ids, col[1:]] = filtframe[col]
+        filtframe.enable_update()
+
+    def update_filteredframe(self, filtframe):
+        ids = self.ids
+        filtframe.disable_update()
+        for comp, frame in self.tracked_data.items():
+            for col in frame:
+                filtframe[(comp, col)] = frame.loc[ids, col]
+        filtframe.enable_update()
+
+    @lazy
     def dataframe(self):
         """
         The data for all components in the filter,
         for the entities which have all these components
         """
-        ids = self.ids
-        data = pd.DataFrame({
-            (comp, field): values[ids]
-            for comp, frame in self.tracked_data.items()
-            for field, values in frame.items()})
-        return data
-
-    def __getattr__(self, attr):
-        return getattr(self.dataframe, attr)
-
-    def __setitem__(self, key, value):
-        if isinstance(key, tuple):
-            self.tracked_data[key[0]].loc[self.ids, key[1:]] = value
-        else:
-            self.tracked_data[key].loc[self.ids] = value
-
-    def __getitem__(self, key):
-        return self.dataframe.loc[self.ids, key]
-
-    def __repr__(self):
-        return repr(self.dataframe)
+        ff = _FilteredFrame({
+            (c, f): [] for c, frame in self.tracked_data.items() for f in frame},
+                            self)
+        self.update_filteredframe(ff)
+        return ff
