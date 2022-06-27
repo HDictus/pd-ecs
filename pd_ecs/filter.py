@@ -7,6 +7,9 @@ from lazy import lazy
 
 
 class _LocWrapper:
+    """
+    Wraps the .loc of a dataframe to enable remote assignment and retrieval
+    """
 
     def __init__(self, _filter, loc, frame):
         self._filter = _filter
@@ -26,6 +29,7 @@ class _LocWrapper:
 
 
 class _FilteredFrame(pd.DataFrame):
+    """Wraps a dataframe enable remote assignment and retrieval"""
 
     def __init__(self, data, filt):
         self.filt = filt
@@ -78,15 +82,19 @@ class Filter:
 
     @property
     def tracked_data(self):
+        """the dataframes managed by the filter"""
         return {comp: self.world[comp] for comp in self._comps}
 
     def update_world(self, filtframe):
+        """Update the world with a modifed filtered dataframe."""
+        # pylint: disable=protected-access
         filtframe._update = False
         for col in filtframe:
             self.world[col[0]].loc[self.ids, col[1:]] = filtframe[col]
         filtframe._update = True
 
     def update_filteredframe(self, filtframe):
+        """Update a filtered dataframe based on changes in the world"""
         ids = self.ids
         for comp, frame in self.tracked_data.items():
             for col in frame:
@@ -99,8 +107,7 @@ class Filter:
         for the entities which have all these components
         """
         ids = self.ids
-        ff = _FilteredFrame({(c, f): frame.loc[ids, f]
-                             for c, frame in self.tracked_data.items()
-                             for f in frame},
-                            self)
-        return ff
+        return _FilteredFrame({(c, f): frame.loc[ids, f]
+                               for c, frame in self.tracked_data.items()
+                               for f in frame},
+                              self)
