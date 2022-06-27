@@ -5,17 +5,24 @@ import numpy as np
 import pandas as pd
 from lazy import lazy
 
-# class _MocLoc:
 
-#     def __init__(self, _filter):
-#         self._filter = _filter
+class _LocWrapper:
 
-#     def __getitem__(self, key):
-#         return self._filter.dataframe.loc[key]
+    def __init__(self, _filter, loc, frame):
+        self._filter = _filter
+        self._frame = frame
+        self._loc = loc
 
-#     def __setitem__(self, key, value):
-#         for c, frame in self._filter.tracked_data.items():
-#             frame.loc[key] = value
+    def __getattr__(self, key):
+        return getattr(self._loc, key)
+
+    def __setitem__(self, key, value):
+        self._loc[key] = value
+        self._filter.update_world(self._frame)
+
+    def __getitem__(self, key):
+        self._filter.update_filteredframe(self._frame)
+        return self._loc[key]
 
 
 class _FilteredFrame(pd.DataFrame):
@@ -26,27 +33,25 @@ class _FilteredFrame(pd.DataFrame):
         super().__init__(data)
 
     def __setattr__(self, key, value):
-        if key not in ('filt', '_update'):
+        if key not in ('filt', '_update', '_loc'):
             super().__setattr__(key, value)
         else:
             object.__setattr__(self, key, value)
 
-    def enable_update(self):
-        self._update = True
-
-    def disable_update(self):
-        self._update = False
+    @property
+    def loc(self):
+        return _LocWrapper(self.filt, super().loc, self)
 
     def __setitem__(self, key, value):
         update = self._update
-        self.disable_update()
+        self._update = False
         super().__setitem__(key, value)
-        self.enable_update()
         if update:
             self.filt.update_world(self)
+        self._update = update
 
     def __getitem__(self, key):
-        if self.update:
+        if self._update:
             self.filt.update_filteredframe(self)
         return super().__getitem__(key)
 
@@ -76,18 +81,16 @@ class Filter:
         return {comp: self.world[comp] for comp in self._comps}
 
     def update_world(self, filtframe):
-        filtframe.disable_update()
+        filtframe._update = False
         for col in filtframe:
             self.world[col[0]].loc[self.ids, col[1:]] = filtframe[col]
-        filtframe.enable_update()
+        filtframe._update = True
 
     def update_filteredframe(self, filtframe):
         ids = self.ids
-        filtframe.disable_update()
         for comp, frame in self.tracked_data.items():
             for col in frame:
                 filtframe[(comp, col)] = frame.loc[ids, col]
-        filtframe.enable_update()
 
     @lazy
     def dataframe(self):
@@ -95,8 +98,9 @@ class Filter:
         The data for all components in the filter,
         for the entities which have all these components
         """
-        ff = _FilteredFrame({
-            (c, f): [] for c, frame in self.tracked_data.items() for f in frame},
+        ids = self.ids
+        ff = _FilteredFrame({(c, f): frame.loc[ids, f]
+                             for c, frame in self.tracked_data.items()
+                             for f in frame},
                             self)
-        self.update_filteredframe(ff)
         return ff
