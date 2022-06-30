@@ -53,4 +53,8 @@ class System:
         """
         A System contains various filters, represented as dataframes
         """
-        return self._filters[key].dataframe
+        try:
+            filt = self._filters[key]
+        except KeyError:
+            raise AttributeError(key)
+        return filt.dataframe
