@@ -104,13 +104,19 @@ class Filter:
         filtframe._update = True
 
     @lazy
-    def dataframe(self):
-        """
-        The data for all components in the filter,
-        for the entities which have all these components
-        """
+    def _frame(self):
         ids = self.ids
         return _FilteredFrame({(c, f): frame.loc[ids, f]
                                for c, frame in self.tracked_data.items()
                                for f in frame},
                               self)
+
+
+    @property
+    def dataframe(self):
+        """
+        The data for all components in the filter,
+        for the entities which have all these components
+        """
+        self.update_filteredframe(self._frame)
+        return self._frame

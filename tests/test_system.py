@@ -127,7 +127,7 @@ def test_system_filter_can_update():
     sys = MySys(mockwld)
     sys.banana
     mockwld.give([1], {comp1: {'a': [1]}})
-    sys.banana[comp1]
+
     pd.testing.assert_frame_equal(
         sys.banana,
         pd.DataFrame({(comp1, 'a'): [1.], (comp2, 'a'): [1]}, index=[1]))
