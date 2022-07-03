@@ -103,3 +103,31 @@ def test_system_filter_copy_breaks_stuff():
     sys = MySys(mockwld)
     with pyt.raises(IndexError):
         sys.banana.loc[4, (comp1, 'a')] = 132
+
+
+def test_system_filter_can_update():
+
+    comp1 = Component('a')
+    comp2 = Component('a')
+    comp3 = Component('c')
+
+    mockwld = World(comp1, comp2, comp3)
+    mockwld.set_state({
+        comp1: pd.DataFrame({'id': [],
+                             'a': []}).set_index('id'),
+        comp2: pd.DataFrame({'id': [1, 2, 3, 10],
+                             'a': [1, 2, 3, 10]}).set_index('id'),
+        comp3: pd.DataFrame({'id': [0, 1, 2, 4, 5, 6],
+                             'c': [1, 2, 3, 4, 5, 6]}).set_index('id')})
+
+    class MySys(System):
+
+        filters = dict(banana=[comp1, comp2])
+
+    sys = MySys(mockwld)
+    sys.banana
+    mockwld.give([1], {comp1: {'a': [1]}})
+    sys.banana[comp1]
+    pd.testing.assert_frame_equal(
+        sys.banana,
+        pd.DataFrame({(comp1, 'a'): [1.], (comp2, 'a'): [1]}, index=[1]))

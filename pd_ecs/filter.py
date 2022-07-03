@@ -96,9 +96,12 @@ class Filter:
     def update_filteredframe(self, filtframe):
         """Update a filtered dataframe based on changes in the world"""
         ids = self.ids
+        # pylint: disable=protected-access
+        filtframe._update = False
         for comp, frame in self.tracked_data.items():
             for col in frame:
                 filtframe[(comp, col)] = frame.loc[ids, col]
+        filtframe._update = True
 
     @lazy
     def dataframe(self):
