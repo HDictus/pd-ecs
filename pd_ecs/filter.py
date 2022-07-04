@@ -51,12 +51,12 @@ class _FilteredFrame(pd.DataFrame):
         self._update = False
         super().__setitem__(key, value)
         if update:
-            self.filt.update_world(self)
+            self.filt.update_world(self, key)
         self._update = update
 
     def __getitem__(self, key):
         if self._update:
-            self.filt.update_filteredframe(self)
+            self.filt.update_filteredframe(self, key)
         return super().__getitem__(key)
 
 
@@ -85,22 +85,55 @@ class Filter:
         """the dataframes managed by the filter"""
         return {comp: self.world[comp] for comp in self._comps}
 
-    def update_world(self, filtframe):
+    def update_world(self, filtframe, key=None):
         """Update the world with a modifed filtered dataframe."""
         # pylint: disable=protected-access
         filtframe._update = False
-        for col in filtframe:
-            self.world[col[0]].loc[self.ids, col[1:]] = filtframe[col]
+        if isinstance(key, list):
+            for i in key:
+                self.update_world(filtframe, key=i)
+                filtframe._update = True
+            return
+
+        if key is None or isinstance(key, slice):
+            comps = self._comps
+            if isinstance(key, slice):
+                comps = self._comps[key]
+            for comp in comps:
+                self.update_world(filtframe, comp)
+            return
+
+        ids = self.ids
+        if isinstance(key, tuple):
+            self.world[key[0]].loc[ids, key[1]] = filtframe[key]
+        else:
+            self.world[key].loc[ids] = filtframe[key]
         filtframe._update = True
 
-    def update_filteredframe(self, filtframe):
+    def update_filteredframe(self, filtframe, key=None):
         """Update a filtered dataframe based on changes in the world"""
         ids = self.ids
         # pylint: disable=protected-access
         filtframe._update = False
-        for comp, frame in self.tracked_data.items():
-            for col in frame:
-                filtframe[(comp, col)] = frame.loc[ids, col]
+        if isinstance(key, list):
+            for i in key:
+                self.update_filteredframe(filtframe, key=i)
+            filtframe._update = True
+            return
+
+        if key is None or isinstance(key, slice):
+            comps = self._comps
+            if isinstance(key, slice):
+                comps = self._comps[key]
+            for comp in comps:
+                self.update_filteredframe(filtframe, comp)
+            filtframe._update = True
+            return
+        if isinstance(key, tuple):
+            filtframe[key] = self.world[key[0]].loc[ids, key[1]]
+        else:
+            filtframe[key] = self.world[key].loc[ids]
+
         filtframe._update = True
 
     @lazy
