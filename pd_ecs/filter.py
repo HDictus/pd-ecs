@@ -60,6 +60,7 @@ class _FilteredFrame(pd.DataFrame):
         return super().__getitem__(key)
 
 
+# TODO: it might be simpler to put the functionality of filter in filteredframe/_locwrapper
 class Filter:
     """Filter entities which have the specified components"""
 
@@ -71,14 +72,34 @@ class Filter:
         """
         self._comps = components
         self.world = world
+        self.ids = np.array([], dtype=np.int32)
+        self.add_components(
+            components, self.world[self._comps[0]].index)
 
-    @property
-    def ids(self):
-        """the ids of entities in this filter"""
-        ids = self.world[self._comps[0]].index
-        for comp in self._comps[1:]:
-            ids = ids[np.isin(ids, self.world[comp].index)]
-        return ids
+        for comp in self._comps:
+            self.world.filters_by_component[comp].append(self)
+
+    def add_components(self, component, ids):
+        """
+        entities ids have had <component> added, check if they belong in
+        the filter now
+        """
+        for comp in self._comps:
+            ids = np.intersect1d(self.world[comp].index, ids)
+            if len(ids) == 0:
+                return
+
+        self.ids = np.concatenate([self.ids, ids])
+
+    def remove_components(self, component, ids):
+        """
+        entities have had ids removed, they no longer belong in this list
+        """
+        toremove = np.isin(self.ids, ids)
+        removed = self.ids[toremove]
+
+        self._frame.drop(removed, inplace=True)
+        self.ids = self.ids[~toremove]
 
     @property
     def tracked_data(self):
@@ -151,5 +172,7 @@ class Filter:
         The data for all components in the filter,
         for the entities which have all these components
         """
+        # TODO: this is also inefficient: it would be better to update on
+        #   __iter__ and __repr__, both more efficient and more robust
         self.update_filteredframe(self._frame)
         return self._frame

@@ -30,10 +30,20 @@ class World:
         self._dict: dict = {}
         self._initialize_state(components)
         self.systems: dict = {}
+        self.filters_by_component = {
+            comp: [] for comp in components}
         self.maxind = 0
 
     def __getitem__(self, key):
         return self._dict[key]
+
+    def notify_filters_added(self, component, ids):
+        for filt in self.filters_by_component[component]:
+            filt.add_components(component, ids)
+
+    def notify_filters_removed(self, component, ids):
+        for filt in self.filters_by_component[component]:
+            filt.remove_components(component, ids)
 
     def add_system(self, system: System):
         """Add an initialized system to the world.
@@ -79,6 +89,7 @@ class World:
     def _add_components(self, frames, indices):
         for comp, frame in frames.items():
             self._add_component(comp, frame, indices)
+            self.notify_filters_added(comp, indices)
 
     def _add_component(self, comp, frame, indices):
         if comp not in self._dict:
@@ -103,6 +114,7 @@ class World:
         """Remove given components from entities corresponding to ids."""
         for component in components:
             self._dict[component].drop(ids, inplace=True)
+            self.notify_filters_removed(component, ids)
 
     def remove_entities(self, ids):
         """
@@ -112,9 +124,10 @@ class World:
             ids: the entity ids, corresponding to the indices of rows
                 corresponding to these entities in the component dataframes.
         """
-        for _, data in self._dict.items():
+        for comp, data in self._dict.items():
             ids_in = np.intersect1d(ids, data.index)
             data.drop(ids_in, inplace=True)
+            self.notify_filters_removed(comp, ids)
 
     @lazy
     def events(self):

@@ -107,9 +107,9 @@ def test_system_filter_copy_breaks_stuff():
 
 def test_system_filter_can_update():
 
-    comp1 = Component('a')
-    comp2 = Component('a')
-    comp3 = Component('c')
+    comp1 = Component('a', name='1')
+    comp2 = Component('a', name='2')
+    comp3 = Component('c', name='3')
 
     mockwld = World(comp1, comp2, comp3)
     mockwld.set_state({
@@ -131,3 +131,8 @@ def test_system_filter_can_update():
     pd.testing.assert_frame_equal(
         sys.banana,
         pd.DataFrame({(comp1, 'a'): [1.], (comp2, 'a'): [1]}, index=[1]))
+
+    mockwld.take([1], comp1)
+    pd.testing.assert_frame_equal(
+        sys.banana,
+        pd.DataFrame({(comp1, 'a'): np.float64([]), (comp2, 'a'): np.int64([])}))
