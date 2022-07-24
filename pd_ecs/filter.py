@@ -5,61 +5,6 @@ import numpy as np
 import pandas as pd
 from lazy import lazy
 
-
-class _LocWrapper:
-    """
-    Wraps the .loc of a dataframe to enable remote assignment and retrieval
-    """
-
-    def __init__(self, _filter, loc, frame):
-        self._filter = _filter
-        self._frame = frame
-        self._loc = loc
-
-    def __getattr__(self, key):
-        return getattr(self._loc, key)
-
-    def __setitem__(self, key, value):
-        self._loc[key] = value
-        self._filter.update_world(self._frame)
-
-    def __getitem__(self, key):
-        self._filter.update_filteredframe(self._frame)
-        return self._loc[key]
-
-
-class _FilteredFrame(pd.DataFrame):
-    """Wraps a dataframe enable remote assignment and retrieval"""
-
-    def __init__(self, data, filt):
-        self.filt = filt
-        self._update = True
-        super().__init__(data)
-
-    def __setattr__(self, key, value):
-        if key not in ('filt', '_update', '_loc'):
-            super().__setattr__(key, value)
-        else:
-            object.__setattr__(self, key, value)
-
-    @property
-    def loc(self):
-        return _LocWrapper(self.filt, super().loc, self)
-
-    def __setitem__(self, key, value):
-        update = self._update
-        self._update = False
-        super().__setitem__(key, value)
-        if update:
-            self.filt.update_world(self, key)
-        self._update = update
-
-    def __getitem__(self, key):
-        if self._update:
-            self.filt.update_filteredframe(self, key)
-        return super().__getitem__(key)
-
-
 # TODO: it might be simpler to put the functionality of filter in filteredframe/_locwrapper
 class Filter:
     """Filter entities which have the specified components"""
@@ -70,13 +15,13 @@ class Filter:
             components: the components required to be part of this filter
             world: the world the filter belongs to
         """
-        self._comps = components
+        self.components = components
         self.world = world
         self.ids = np.array([], dtype=np.int32)
         self.add_components(
-            components, self.world[self._comps[0]].index)
+            components, self.world[self.components[0]].index)
 
-        for comp in self._comps:
+        for comp in self.components:
             self.world.filters_by_component[comp].append(self)
 
     def add_components(self, component, ids):
@@ -84,7 +29,7 @@ class Filter:
         entities ids have had <component> added, check if they belong in
         the filter now
         """
-        for comp in self._comps:
+        for comp in self.components:
             ids = np.intersect1d(self.world[comp].index, ids)
             if len(ids) == 0:
                 return
@@ -96,83 +41,10 @@ class Filter:
         entities have had ids removed, they no longer belong in this list
         """
         toremove = np.isin(self.ids, ids)
-        removed = self.ids[toremove]
-
-        self._frame.drop(removed, inplace=True)
         self.ids = self.ids[~toremove]
 
-    @property
-    def tracked_data(self):
-        """the dataframes managed by the filter"""
-        return {comp: self.world[comp] for comp in self._comps}
+    def data(self):
+        return tuple(self[comp] for comp in self.components)
 
-    def update_world(self, filtframe, key=None):
-        """Update the world with a modifed filtered dataframe."""
-        # pylint: disable=protected-access
-        filtframe._update = False
-        if isinstance(key, list):
-            for i in key:
-                self.update_world(filtframe, key=i)
-                filtframe._update = True
-            return
-
-        if key is None or isinstance(key, slice):
-            comps = self._comps
-            if isinstance(key, slice):
-                comps = self._comps[key]
-            for comp in comps:
-                self.update_world(filtframe, comp)
-            return
-
-        ids = self.ids
-        if isinstance(key, tuple):
-            self.world[key[0]].loc[ids, key[1]] = filtframe[key]
-        else:
-            self.world[key].loc[ids] = filtframe[key]
-        filtframe._update = True
-
-    def update_filteredframe(self, filtframe, key=None):
-        """Update a filtered dataframe based on changes in the world"""
-        ids = self.ids
-        # pylint: disable=protected-access
-        filtframe._update = False
-        if isinstance(key, list):
-            for i in key:
-                self.update_filteredframe(filtframe, key=i)
-            filtframe._update = True
-            return
-
-        if key is None or isinstance(key, slice):
-            comps = self._comps
-            if isinstance(key, slice):
-                comps = self._comps[key]
-            for comp in comps:
-                self.update_filteredframe(filtframe, comp)
-            filtframe._update = True
-            return
-        if isinstance(key, tuple):
-            filtframe[key] = self.world[key[0]].loc[ids, key[1]]
-        else:
-            filtframe[key] = self.world[key].loc[ids]
-
-        filtframe._update = True
-
-    @lazy
-    def _frame(self):
-        ids = self.ids
-        return _FilteredFrame({(c, f): frame.loc[ids, f]
-                               for c, frame in self.tracked_data.items()
-                               for f in frame},
-                              self)
-
-
-    @property
-    def dataframe(self):
-        """
-        The data for all components in the filter,
-        for the entities which have all these components
-        """
-        # TODO: this is also inefficient: it would be better to update on
-        #   __iter__ and __repr__, both more efficient and more robust
-        self.update_filteredframe(self._frame)
-        return self._frame
+    def __getitem__(self, comp):
+        return self.world[comp].loc[self.ids]

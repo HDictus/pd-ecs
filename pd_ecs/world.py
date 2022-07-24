@@ -112,6 +112,7 @@ class World:
 
     def take(self, ids, *components):
         """Remove given components from entities corresponding to ids."""
+        # TODO: test take-ing empty set of ids
         for component in components:
             self._dict[component].drop(ids, inplace=True)
             self.notify_filters_removed(component, ids)
@@ -133,6 +134,11 @@ class World:
     def events(self):
         """calls any events, callign system's event functions"""
         return EventManager(self)
+
+    # TODO: document and test
+    def update(self, components):
+        for comp, frame in components.items():
+            self[comp].loc[frame.index] = frame
 
 
 # pylint: disable=too-few-public-methods

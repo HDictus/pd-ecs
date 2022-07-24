@@ -177,6 +177,7 @@ def test_world_take():
     world.take([1], component1)
     assert list(world[component1].index) == [0, 2]
 
+
 def test_world_remove_entities():
     component1 = Component('some', 'fields')
     component2 = Component('field')
@@ -242,3 +243,17 @@ def test_world_set_state_invalid_fields():
         comp1: pd.DataFrame({'c': [0, 1, 2, 3, 4, 5, 6, 7]})}
     with pyt.raises(ComponentError):
         world.set_state(state)
+
+def test_world_update():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    comp3 = Component('c')
+    world = World(comp1, comp2, comp3)
+    state = {
+        comp1: pd.DataFrame({'a': [0, 1, 2, 3, 4, 5, 6, 7]}),
+        comp2: pd.DataFrame({'b': [1, 2, 3, 10]}),
+        comp3: pd.DataFrame({'c': [1, 2, 3, 4, 5, 6]})}
+    world.set_state(state)
+    world.update({comp1: pd.DataFrame({'a': [0, 3, 2, 4]}, index=[3, 2, 5, 1]),
+                  comp3: pd.DataFrame({'c': [1, 6, 3, 4]}, index=[1, 4, 2, 0])
+    })

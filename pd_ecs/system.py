@@ -57,4 +57,4 @@ class System:
             filt = self._filters[key]
         except KeyError:
             raise AttributeError(key)
-        return filt.dataframe
+        return filt
