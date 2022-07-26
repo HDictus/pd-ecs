@@ -1,7 +1,8 @@
 """Declaring components."""
 import pandas as pd
 
-unnamed_components = []
+unnamed_components: list = []
+
 
 # pylint: disable=too-few-public-methods
 class Component:

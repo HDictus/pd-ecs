@@ -55,6 +55,6 @@ class System:
         """
         try:
             filt = self._filters[key]
-        except KeyError:
-            raise AttributeError(key)
+        except KeyError as exc:
+            raise AttributeError(key) from exc
         return filt

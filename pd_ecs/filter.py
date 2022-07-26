@@ -2,10 +2,8 @@
 The Filter object filters entities and components by specified criteria.
 """
 import numpy as np
-import pandas as pd
-from lazy import lazy
 
-# TODO: it might be simpler to put the functionality of filter in filteredframe/_locwrapper
+
 class Filter:
     """Filter entities which have the specified components"""
 
@@ -30,13 +28,15 @@ class Filter:
         the filter now
         """
         for comp in self.components:
+            if comp == component:
+                continue
             ids = np.intersect1d(self.world[comp].index, ids)
             if len(ids) == 0:
                 return
 
         self.ids = np.concatenate([self.ids, ids])
 
-    def remove_components(self, component, ids):
+    def remove_components(self, _, ids):
         """
         entities have had ids removed, they no longer belong in this list
         """
@@ -44,6 +44,7 @@ class Filter:
         self.ids = self.ids[~toremove]
 
     def data(self):
+        """Return the dataframes for the filtered components"""
         return tuple(self[comp] for comp in self.components)
 
     def __getitem__(self, comp):

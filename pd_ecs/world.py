@@ -30,7 +30,7 @@ class World:
         self._dict: dict = {}
         self._initialize_state(components)
         self.systems: dict = {}
-        self.filters_by_component = {
+        self.filters_by_component: dict = {
             comp: [] for comp in components}
         self.maxind = 0
 
@@ -38,10 +38,12 @@ class World:
         return self._dict[key]
 
     def notify_filters_added(self, component, ids):
+        """Inform the relevant filters ids have component now."""
         for filt in self.filters_by_component[component]:
             filt.add_components(component, ids)
 
     def notify_filters_removed(self, component, ids):
+        """Inform the relevant filters ids no longer have component.e"""
         for filt in self.filters_by_component[component]:
             filt.remove_components(component, ids)
 
@@ -112,7 +114,6 @@ class World:
 
     def take(self, ids, *components):
         """Remove given components from entities corresponding to ids."""
-        # TODO: test take-ing empty set of ids
         for component in components:
             self._dict[component].drop(ids, inplace=True)
             self.notify_filters_removed(component, ids)
@@ -135,8 +136,15 @@ class World:
         """calls any events, callign system's event functions"""
         return EventManager(self)
 
-    # TODO: document and test
-    def update(self, components):
+    def update(self, components: dict):
+        """
+        Update the world state with given component dataframes
+
+        Arguments:
+            components is a dict of component: dataframe. the values in the
+                dataframes represent the new values for those components in
+                for the entities corresponding to their index.
+        """
         for comp, frame in components.items():
             self[comp].loc[frame.index] = frame
 
