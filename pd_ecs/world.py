@@ -12,6 +12,7 @@ from lazy import lazy
 from .exceptions import ComponentError
 from .component import Component
 from .system import System
+from .types import ComponentDict
 
 
 class World:
@@ -57,7 +58,7 @@ class World:
         for component in components:
             self._dict[component] = component.init_dataframe()
 
-    def set_state(self, state: dict):
+    def set_state(self, state: ComponentDict):
         """
         Set the state of the world (entities, components) to the provided value
 
@@ -71,7 +72,7 @@ class World:
         for component, data in state.items():
             self._add_component(component, data, data.index)
 
-    def add_entities(self, component_values: dict):
+    def add_entities(self, component_values: ComponentDict):
         """
         Add entities to the world.
         Arguments:
@@ -136,7 +137,7 @@ class World:
         """calls any events, callign system's event functions"""
         return EventManager(self)
 
-    def update(self, components: dict):
+    def update(self, components: ComponentDict):
         """
         Update the world state with given component dataframes
 
