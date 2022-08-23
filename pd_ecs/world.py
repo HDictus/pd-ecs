@@ -6,13 +6,13 @@ Systems are added to the world.
 World.events.<event_name> calls that event for all systems in the world
 """
 from collections.abc import Iterable
+from typing import Dict
 import pandas as pd
 import numpy as np
 from lazy import lazy
 from .exceptions import ComponentError
 from .component import Component
 from .system import System
-from typing import Dict
 
 
 class World:
