@@ -31,23 +31,25 @@ def test_system_has_filters():
         filters = dict(banana=[comp1, comp2])
 
     sys = MySys(mockwld)
-    exp = pd.DataFrame({
-        (comp1, 'a'): [1, 2, 3],
-        (comp2, 'b'): [1, 2, 3]})
-    exp.index = [1, 2, 3]
+    c1, c2 = sys.banana.data()
+    pd.testing.assert_frame_equal(c1, pd.DataFrame({'a': [1, 2, 3]},
+                                                   index=[1, 2, 3]))
+    pd.testing.assert_frame_equal(c2, pd.DataFrame({'b': [1, 2, 3]},
+                                                   index=[1, 2, 3]))
 
-    pd.testing.assert_frame_equal(sys.banana[:], exp)
 
 
-def test_system_filter_modifies_world():
-    comp1 = Component('a')
-    comp2 = Component('a')
-    comp3 = Component('c')
+
+def test_system_filter_can_update():
+
+    comp1 = Component('a', name='1')
+    comp2 = Component('a', name='2')
+    comp3 = Component('c', name='3')
 
     mockwld = World(comp1, comp2, comp3)
     mockwld.set_state({
-        comp1: pd.DataFrame({'id': [0, 1, 2, 3, 4, 5, 6, 7],
-                             'a': [0, 1, 2, 3, 4, 5, 6, 7]}).set_index('id'),
+        comp1: pd.DataFrame({'id': [],
+                             'a': []}).set_index('id'),
         comp2: pd.DataFrame({'id': [1, 2, 3, 10],
                              'a': [1, 2, 3, 10]}).set_index('id'),
         comp3: pd.DataFrame({'id': [0, 1, 2, 4, 5, 6],
@@ -58,48 +60,13 @@ def test_system_filter_modifies_world():
         filters = dict(banana=[comp1, comp2])
 
     sys = MySys(mockwld)
+    sys.banana.data()
+    mockwld.give([1], {comp1: {'a': [1]}})
+    c1, c2 = sys.banana.data()
+    pd.testing.assert_frame_equal(c1, pd.DataFrame({'a': [1.]}, index=[1]))
+    pd.testing.assert_frame_equal(c2, pd.DataFrame({'a': [1]}, index=[1]))
 
-    sys.banana[(comp1, 'a')] = 30
-    assert np.allclose(mockwld[comp1].loc[[1, 2, 3], 'a'].values, 30)
-    sys.banana[comp1] += sys.banana[comp2]
-    assert np.allclose(mockwld[comp1].loc[[1, 2, 3], 'a'],
-                       [31, 32, 33])
-    mockwld[comp1].loc[2] = 400
-    assert sys.banana.loc[2, (comp1, 'a')] == 400
-
-    sys.banana.loc[[2, 3]] = 44
-    assert np.allclose(mockwld[comp2].loc[[2, 3]].values, 44)
-
-    sys.banana.loc[[2, 3], [comp1]] = 432
-    assert np.allclose(mockwld[comp1].loc[[2, 3]].values, 432)
-
-    sys.banana.loc[[2, 3], [(comp1, 'a'), (comp2, 'a')]] = 110
-    assert np.allclose(mockwld[comp1].loc[[2, 3]].values, 110)
-
-    sys.banana[[comp1, comp2]] = 3000
-    assert np.allclose(mockwld[comp2].loc[[1, 2, 3]].values, 3000)
-    assert np.allclose(mockwld[comp1].loc[[1, 2, 3]].values, 3000)
-
-
-@pyt.mark.xfail
-def test_system_filter_copy_breaks_stuff():
-    comp1 = Component('a')
-    comp2 = Component('a')
-    comp3 = Component('c')
-
-    mockwld = World(comp1, comp2, comp3)
-    mockwld.set_state({
-        comp1: pd.DataFrame({'id': [0, 1, 2, 3, 4, 5, 6, 7],
-                             'a': [0, 1, 2, 3, 4, 5, 6, 7]}).set_index('id'),
-        comp2: pd.DataFrame({'id': [1, 2, 3, 10],
-                             'a': [1, 2, 3, 10]}).set_index('id'),
-        comp3: pd.DataFrame({'id': [0, 1, 2, 4, 5, 6],
-                             'c': [1, 2, 3, 4, 5, 6]}).set_index('id')})
-
-    class MySys(System):
-
-        filters = dict(banana=[comp1, comp2])
-
-    sys = MySys(mockwld)
-    with pyt.raises(IndexError):
-        sys.banana.loc[4, (comp1, 'a')] = 132
+    mockwld.take([1], comp1)
+    c1, c2 = sys.banana.data()
+    pd.testing.assert_frame_equal(c1, pd.DataFrame({'a': []}, dtype=float))
+    pd.testing.assert_frame_equal(c2, pd.DataFrame({'a': []}, dtype=int))

@@ -6,6 +6,7 @@ Systems are added to the world.
 World.events.<event_name> calls that event for all systems in the world
 """
 from collections.abc import Iterable
+from typing import Dict
 import pandas as pd
 import numpy as np
 from lazy import lazy
@@ -30,10 +31,22 @@ class World:
         self._dict: dict = {}
         self._initialize_state(components)
         self.systems: dict = {}
+        self.filters_by_component: dict = {
+            comp: [] for comp in components}
         self.maxind = 0
 
     def __getitem__(self, key):
         return self._dict[key]
+
+    def notify_filters_added(self, component, ids):
+        """Inform the relevant filters ids have component now."""
+        for filt in self.filters_by_component[component]:
+            filt.add_components(component, ids)
+
+    def notify_filters_removed(self, component, ids):
+        """Inform the relevant filters ids no longer have component.e"""
+        for filt in self.filters_by_component[component]:
+            filt.remove_components(component, ids)
 
     def add_system(self, system: System):
         """Add an initialized system to the world.
@@ -45,7 +58,7 @@ class World:
         for component in components:
             self._dict[component] = component.init_dataframe()
 
-    def set_state(self, state: dict):
+    def set_state(self, state: Dict[Component, pd.DataFrame]):
         """
         Set the state of the world (entities, components) to the provided value
 
@@ -59,7 +72,7 @@ class World:
         for component, data in state.items():
             self._add_component(component, data, data.index)
 
-    def add_entities(self, component_values: dict):
+    def add_entities(self, component_values: Dict[Component, pd.DataFrame]):
         """
         Add entities to the world.
         Arguments:
@@ -79,6 +92,7 @@ class World:
     def _add_components(self, frames, indices):
         for comp, frame in frames.items():
             self._add_component(comp, frame, indices)
+            self.notify_filters_added(comp, indices)
 
     def _add_component(self, comp, frame, indices):
         if comp not in self._dict:
@@ -103,6 +117,7 @@ class World:
         """Remove given components from entities corresponding to ids."""
         for component in components:
             self._dict[component].drop(ids, inplace=True)
+            self.notify_filters_removed(component, ids)
 
     def remove_entities(self, ids):
         """
@@ -112,14 +127,27 @@ class World:
             ids: the entity ids, corresponding to the indices of rows
                 corresponding to these entities in the component dataframes.
         """
-        for _, data in self._dict.items():
+        for comp, data in self._dict.items():
             ids_in = np.intersect1d(ids, data.index)
             data.drop(ids_in, inplace=True)
+            self.notify_filters_removed(comp, ids)
 
     @lazy
     def events(self):
         """calls any events, callign system's event functions"""
         return EventManager(self)
+
+    def update(self, components: Dict[Component, pd.DataFrame]):
+        """
+        Update the world state with given component dataframes
+
+        Arguments:
+            components is a dict of component: dataframe. the values in the
+                dataframes represent the new values for those components in
+                for the entities corresponding to their index.
+        """
+        for comp, frame in components.items():
+            self[comp].loc[frame.index] = frame
 
 
 # pylint: disable=too-few-public-methods
