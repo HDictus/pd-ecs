@@ -12,7 +12,7 @@ from lazy import lazy
 from .exceptions import ComponentError
 from .component import Component
 from .system import System
-from collections import Dict
+from typing import Dict
 
 
 class World:
