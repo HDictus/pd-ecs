@@ -98,7 +98,7 @@ class World:
             self._add_component(comp, frame, indices)
             self.notify_filters_added(comp, indices)
 
-    def _add_component(self, comp, frame, indices):
+    def _add_component(self, comp, frame, indices, keep='last'):
         if comp not in self._dict:
             self._initialize_state((comp, ))
 
@@ -107,9 +107,14 @@ class World:
                 raise ComponentError(
                     f"field {key} does not belong to {comp}")
 
-        self._dict[comp] = pd.concat([
-            self[comp],
-            frame.set_index(np.array(indices))])
+        new_df = pd.concat(
+            [self[comp],
+             frame.set_index(np.array(indices))]
+        )
+        new_df['ind'] = new_df.index
+        # prevent adding duplicate components
+        self._dict[comp] =\
+            new_df.drop_duplicates(keep=keep, subset='ind')[list(comp.fields)]
 
     def give(self, ids, components):
         """Add given components to entities corresponding to ids."""

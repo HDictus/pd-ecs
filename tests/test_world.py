@@ -152,13 +152,13 @@ def test_world_give():
         {component1: {'some': ['d'],
                       'fields': ['b']}})
     world.give(
-        [1, 4, 2],
-        {component1: {'some': ['a', 'b', 'c'],
-                      'fields': ['g', 'e', 'f']}})
+        [1, 4, 2, 5],
+        {component1: {'some': ['a', 'b', 'c', 'a'],
+                      'fields': ['g', 'e', 'f', 'c']}})
 
-    assert list(world[component1].index) == [5, 1, 4, 2]
-    assert list(world[component1]['some']) == ['d', 'a', 'b', 'c']
-    assert list(world[component1]['fields']) == ['b', 'g', 'e', 'f']
+    assert list(world[component1].index) == [1, 4, 2, 5]
+    assert list(world[component1]['some']) == ['a', 'b', 'c', 'a']
+    assert list(world[component1]['fields']) == ['g', 'e', 'f', 'c']
 
 
 def test_world_take():

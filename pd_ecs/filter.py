@@ -28,7 +28,6 @@ class Filter:
         the filter now
         """
         for comp in self.components:
-            print(comp, ids, self.world[comp].index)
             if comp == component:
                 continue
             ids = np.intersect1d(self.world[comp].index, ids)
