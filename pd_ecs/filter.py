@@ -2,6 +2,7 @@
 The Filter object filters entities and components by specified criteria.
 """
 import numpy as np
+import pandas as pd
 
 
 class Filter:
@@ -49,3 +50,9 @@ class Filter:
 
     def __getitem__(self, comp):
         return self.world[comp].loc[self.ids]
+
+    def multi_frame(self):
+        return pd.DataFrame({(component, field): df[field]
+                             for component, df in zip(self.components, self.data())
+                             for field in df.columns},
+                            index=self.ids)

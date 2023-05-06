@@ -9,10 +9,9 @@ from collections.abc import Iterable
 from typing import Dict
 import pandas as pd
 import numpy as np
-from lazy import lazy
 from .exceptions import ComponentError
 from .component import Component
-from .system import System
+from .filter import Filter
 
 
 class World:
@@ -20,8 +19,6 @@ class World:
     The World stores and manages the state and events of the simulation.
 
     It is defined as consisting of a certain set of component types.
-    Systems are added to the world.
-    World.events.<event_name> calls that event for all systems in the world
     """
 
     def __init__(self, *components: Component):
@@ -30,12 +27,18 @@ class World:
         """
         self._dict: dict = {}
         self._initialize_state(components)
-        self.systems: dict = {}
+        self._filters = {}
         self.filters_by_component: dict = {
             comp: [] for comp in components}
         self.maxind = 0
 
     def __getitem__(self, key):
+        if isinstance(key, tuple):
+            if len(key) == 1:
+                return self._dict[key[0]]
+            if key not in self._filters:
+                self._filters[key] = Filter(*key, world=self)
+            return self._filters[key].multi_frame()
         return self._dict[key]
 
     def notify_filters_added(self, component, ids):
@@ -47,12 +50,6 @@ class World:
         """Inform the relevant filters ids no longer have component.e"""
         for filt in self.filters_by_component[component]:
             filt.remove_components(component, ids)
-
-    def add_system(self, system: System):
-        """Add an initialized system to the world.
-        This is usually called in the system's init method - it is not
-        necessary to manually do so again"""
-        self.systems[system.__class__] = system
 
     def _initialize_state(self, components: Iterable):
         for component in components:
@@ -132,11 +129,6 @@ class World:
             data.drop(ids_in, inplace=True)
             self.notify_filters_removed(comp, ids)
 
-    @lazy
-    def events(self):
-        """calls any events, callign system's event functions"""
-        return EventManager(self)
-
     def update(self, components: Dict[Component, pd.DataFrame]):
         """
         Update the world state with given component dataframes
@@ -148,24 +140,6 @@ class World:
         """
         for comp, frame in components.items():
             self[comp].loc[frame.index] = frame
-
-
-# pylint: disable=too-few-public-methods
-class EventManager:
-    """passes event calls through to the world's systems"""
-
-    def __init__(self, world):
-        self.world = world
-
-    def __getattr__(self, key):
-
-        def eventfunction(*args, **kwargs):
-            for system in self.world.systems.values():
-                if hasattr(system, key):
-                    getattr(system, key)(*args, **kwargs)
-
-        setattr(self, key, eventfunction)
-        return eventfunction
 
 
 def _number_of_entities(components):

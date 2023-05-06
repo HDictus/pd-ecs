@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 import pytest as pyt
 from mock import MagicMock
-from pd_ecs import Component, World, System
+from pd_ecs import Component, World
 from pd_ecs.exceptions import ComponentError
 
 
@@ -12,7 +12,6 @@ def test_world_has_components():
 
     world = World(component1, component2)
 
-    print(world[component1])
     pd.testing.assert_frame_equal(
         world[component1],
         pd.DataFrame(columns=['some', 'fields'], dtype=int))
@@ -21,16 +20,27 @@ def test_world_has_components():
         pd.DataFrame(columns=['field'], dtype=int))
 
 
-def test_world_has_systems():
+def test_world_index_filters():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
 
-    world = World()
+    world = World(component1, component2)
+    has_2 = world.add_entities({
+        component1: {'some': [1, 2], 'fields': [2, 3]},
+        component2: {'field': [4, 5]}})
+    _ = world.add_entities({
+        component1: {'some': [4, 5, 6], 'fields': [5, 6, 7]}})
+    expdict = {
+            (component1, 'some'): [1, 2],
+            (component1, 'fields'): [2, 3],
+            (component2, 'field'): [4, 5]}
+    exp = pd.DataFrame(
+        expdict,
+        index=has_2)
 
-    class Asys(System):
-        pass
-
-    inst = Asys(world)
-
-    assert world.systems[Asys] == inst
+    pd.testing.assert_frame_equal(
+        world[(component1, component2)],
+        exp)
 
 
 def test_world_add_entities():
@@ -193,20 +203,6 @@ def test_world_remove_entities():
     assert list(world[component2].index) == [0, 1, 2]
     assert list(world[component1].index) == []
     return
-
-
-def test_world_calls_system_events():
-    world = World()
-
-    class ASystem(System):
-
-        something_happens = MagicMock()
-
-    sys = ASystem(world)
-
-    world.events.something_happens('banana', 'fork')
-
-    sys.something_happens.assert_called_with('banana', 'fork')
 
 
 def test_world_set_state():
