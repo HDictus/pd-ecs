@@ -20,8 +20,7 @@ class Filter:
         self.add_components(
             components, self.world[self.components[0]].index)
 
-        for comp in self.components:
-            self.world.filters_by_component[comp].append(self)
+        self.world.add_filter(self, components)
 
     def add_components(self, component, ids):
         """
@@ -29,13 +28,14 @@ class Filter:
         the filter now
         """
         for comp in self.components:
+            print(comp, ids, self.world[comp].index)
             if comp == component:
                 continue
             ids = np.intersect1d(self.world[comp].index, ids)
             if len(ids) == 0:
                 return
 
-        self.ids = np.concatenate([self.ids, ids])
+        self.ids = np.unique(np.concatenate([self.ids, ids]))
 
     def remove_components(self, _, ids):
         """

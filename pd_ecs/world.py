@@ -30,6 +30,12 @@ class World:
         self.filters_by_component: dict = {}
         self.maxind = 0
 
+    def add_filter(self, filt, components):
+        for comp in components:
+            if comp not in self.filters_by_component:
+                self._initialize_state((comp, ))
+            self.filters_by_component[comp].append(filt)
+
     def __getitem__(self, key):
         if isinstance(key, tuple):
             if len(key) == 1:
@@ -37,6 +43,8 @@ class World:
             if key not in self._filters:
                 self._filters[key] = Filter(*key, world=self)
             return self._filters[key].multi_frame()
+        if key not in self._dict:
+            self._initialize_state((key,))
         return self._dict[key]
 
     def notify_filters_added(self, component, ids):
