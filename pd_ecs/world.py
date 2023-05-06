@@ -21,15 +21,13 @@ class World:
     It is defined as consisting of a certain set of component types.
     """
 
-    def __init__(self, *components: Component):
+    def __init__(self):
         """
         components: component types the world consists of
         """
         self._dict: dict = {}
-        self._initialize_state(components)
         self._filters = {}
-        self.filters_by_component: dict = {
-            comp: [] for comp in components}
+        self.filters_by_component: dict = {}
         self.maxind = 0
 
     def __getitem__(self, key):
@@ -54,6 +52,7 @@ class World:
     def _initialize_state(self, components: Iterable):
         for component in components:
             self._dict[component] = component.init_dataframe()
+            self.filters_by_component[component] = []
 
     def set_state(self, state: Dict[Component, pd.DataFrame]):
         """
@@ -93,8 +92,7 @@ class World:
 
     def _add_component(self, comp, frame, indices):
         if comp not in self._dict:
-            raise ComponentError(
-                f"Component {comp} does not exist in this world")
+            self._initialize_state((comp, ))
 
         for key in frame:
             if key not in comp.fields:

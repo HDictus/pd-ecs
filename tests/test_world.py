@@ -6,25 +6,11 @@ from pd_ecs import Component, World
 from pd_ecs.exceptions import ComponentError
 
 
-def test_world_has_components():
-    component1 = Component('some', 'fields')
-    component2 = Component('field')
-
-    world = World(component1, component2)
-
-    pd.testing.assert_frame_equal(
-        world[component1],
-        pd.DataFrame(columns=['some', 'fields'], dtype=int))
-    pd.testing.assert_frame_equal(
-        world[component2],
-        pd.DataFrame(columns=['field'], dtype=int))
-
-
 def test_world_index_filters():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
     has_2 = world.add_entities({
         component1: {'some': [1, 2], 'fields': [2, 3]},
         component2: {'field': [4, 5]}})
@@ -47,7 +33,7 @@ def test_world_add_entities():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
 
     world.add_entities(
         {component1: {'some': [1, 2, 3, 4],
@@ -71,7 +57,7 @@ def test_world_add_entities_array():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
 
     # check that it works with tuples and arrays
     world.add_entities(
@@ -87,7 +73,7 @@ def world_add_entities_tuple():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
 
     world.add_entities(
         {component1: {'some': (1, 2, 3, 4),
@@ -103,7 +89,7 @@ def test_world_add_single_entity():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
 
     world.add_entities(
         {component1: {'some': 1,
@@ -114,7 +100,7 @@ def test_world_enties_single_value_extrapolated():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
 
     world.add_entities(
         {component1: {'some': 1,
@@ -126,7 +112,7 @@ def test_world_add_invalid_entities():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
     # mismatched numbers of entities
     with pyt.raises(ComponentError):
         world.add_entities(
@@ -148,7 +134,7 @@ def test_world_add_empty():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
     # mismatched numbers of entities
     world.add_entities(
         {component1: {'some': [], 'fields': []}})
@@ -158,7 +144,7 @@ def test_world_give():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
 
     world.add_entities(
         {component2: {'field': [1, 2, 3, 4, 5]}})
@@ -179,7 +165,7 @@ def test_world_take():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
     world.add_entities(
         {component1: {'some': ['b', 'c', 'd'],
                       'fields': ['g', 'e', 'f']},
@@ -191,7 +177,7 @@ def test_world_take():
 def test_world_remove_entities():
     component1 = Component('some', 'fields')
     component2 = Component('field')
-    world = World(component1, component2)
+    world = World()
 
     world.add_entities(
         {component2: {'field': [1, 2, 3, 4, 5]}})
@@ -209,7 +195,7 @@ def test_world_set_state():
     comp1 = Component('a')
     comp2 = Component('b')
     comp3 = Component('c')
-    world = World(comp1, comp2, comp3)
+    world = World()
     state = {
         comp1: pd.DataFrame({'a': [0, 1, 2, 3, 4, 5, 6, 7]}),
         comp2: pd.DataFrame({'b': [1, 2, 3, 10]}),
@@ -219,22 +205,9 @@ def test_world_set_state():
         pd.testing.assert_frame_equal(world[comp], state[comp])
 
 
-def test_world_set_state_invalid_components():
-    comp1 = Component('a')
-    comp2 = Component('b')
-    comp3 = Component('c')
-    world = World(comp1, comp2)
-    state = {
-        comp1: pd.DataFrame({'a': [0, 1, 2, 3, 4, 5, 6, 7]}),
-        comp2: pd.DataFrame({'b': [1, 2, 3, 10]}),
-        comp3: pd.DataFrame({'c': [1, 2, 3, 4, 5, 6]})}
-    with pyt.raises(ComponentError):
-        world.set_state(state)
-
-
 def test_world_set_state_invalid_fields():
     comp1 = Component('a')
-    world = World(comp1)
+    world = World()
     state = {
         comp1: pd.DataFrame({'c': [0, 1, 2, 3, 4, 5, 6, 7]})}
     with pyt.raises(ComponentError):
@@ -244,7 +217,7 @@ def test_world_update():
     comp1 = Component('a')
     comp2 = Component('b')
     comp3 = Component('c')
-    world = World(comp1, comp2, comp3)
+    world = World()
     state = {
         comp1: pd.DataFrame({'a': [0, 1, 2, 3, 4, 5, 6, 7]}),
         comp2: pd.DataFrame({'b': [1, 2, 3, 10]}),
