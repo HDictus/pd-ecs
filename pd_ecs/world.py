@@ -38,11 +38,9 @@ class World:
 
     def __getitem__(self, key):
         if isinstance(key, tuple):
-            if len(key) == 1:
-                return self._dict[key[0]]
             if key not in self._filters:
                 self._filters[key] = Filter(*key, world=self)
-            return self._filters[key].multi_frame()
+            return self._filters[key]
         if key not in self._dict:
             self._initialize_state((key,))
         return self._dict[key]

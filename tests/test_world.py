@@ -25,7 +25,7 @@ def test_world_index_filters():
         index=has_2)
 
     pd.testing.assert_frame_equal(
-        world[(component1, component2)],
+        world[(component1, component2)].multi_frame(),
         exp)
 
 
