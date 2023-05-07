@@ -43,6 +43,10 @@ class Filter:
         toremove = np.isin(self.ids, ids)
         self.ids = self.ids[~toremove]
 
+    @property
+    def index(self):
+        return self.ids
+
     def data(self):
         """Return the dataframes for the filtered components"""
         return tuple(self[comp] for comp in self.components)

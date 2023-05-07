@@ -14,3 +14,5 @@ def test_filter_duplicate_added():
     world.give(entity, {comp2: {'b': 6}})
     assert len(filt.ids) == 1
     assert all(filt.ids == [0])
+
+    assert (filt.index == filt.ids).all()
