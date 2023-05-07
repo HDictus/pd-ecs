@@ -31,6 +31,8 @@ class World:
         self.maxind = 0
 
     def add_filter(self, filt, components):
+        """Add a new filter to the world."""
+        # TODO: this is not the best way to do this - we have a public method here confusing users
         for comp in components:
             if comp not in self.filters_by_component:
                 self._initialize_state((comp, ))

@@ -24,9 +24,10 @@ class Filter:
 
     def add_components(self, component, ids):
         """
-        entities ids have had <component> added, check if they belong in
-        the filter now
+        Entities ids have had <component> added, check if they belong in
+        the filter now.
         """
+        # TODO: another method that should not be user-facing
         for comp in self.components:
             if comp == component:
                 continue
@@ -45,6 +46,7 @@ class Filter:
 
     @property
     def index(self):
+        """The index of the filtered data."""
         return self.ids
 
     def data(self):
@@ -55,6 +57,20 @@ class Filter:
         return self.world[comp].loc[self.ids]
 
     def multi_frame(self):
+        """Get all the filtered data as a dataframe with multiple column levels.
+
+        Warning: this method is rather slow, use it sparingly.
+
+        Returns:
+           a dataframe of the form:
+           | component1       | component2 |  ....
+           | field1 | field2  | field3     |  ....
+           | value1 | value2  | value3
+             ...       ...      ....
+
+           The columns are a multiindex with first level corresponding to
+           component types, and second level to the fields of those components
+        """
         return pd.DataFrame({(component, field): df[field]
                              for component, df in zip(self.components, self.data())
                              for field in df.columns},
