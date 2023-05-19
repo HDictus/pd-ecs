@@ -2,6 +2,7 @@
 The Filter object filters entities and components by specified criteria.
 """
 import numpy as np
+import pandas as pd
 
 
 class Filter:
@@ -16,16 +17,13 @@ class Filter:
         self.components = components
         self.world = world
         self.ids = np.array([], dtype=np.int32)
-        self.add_components(
+        self._components_added(
             components, self.world[self.components[0]].index)
 
-        for comp in self.components:
-            self.world.filters_by_component[comp].append(self)
-
-    def add_components(self, component, ids):
+    def _components_added(self, component, ids):
         """
-        entities ids have had <component> added, check if they belong in
-        the filter now
+        Entities ids have had <component> added, check if they belong in
+        the filter now.
         """
         for comp in self.components:
             if comp == component:
@@ -34,14 +32,19 @@ class Filter:
             if len(ids) == 0:
                 return
 
-        self.ids = np.concatenate([self.ids, ids])
+        self.ids = np.unique(np.concatenate([self.ids, ids]))
 
-    def remove_components(self, _, ids):
+    def _components_removed(self, _, ids):
         """
         entities have had ids removed, they no longer belong in this list
         """
         toremove = np.isin(self.ids, ids)
         self.ids = self.ids[~toremove]
+
+    @property
+    def index(self):
+        """The index of the filtered data."""
+        return self.ids
 
     def data(self):
         """Return the dataframes for the filtered components"""
@@ -49,3 +52,26 @@ class Filter:
 
     def __getitem__(self, comp):
         return self.world[comp].loc[self.ids]
+
+    def multi_frame(self):
+        """Get all the filtered components as a single dataframe.
+
+        Warning: this method is rather slow, use it sparingly.
+
+        Returns:
+           a dataframe of the form:
+           | component1       | component2 |  ....
+           | field1 | field2  | field3     |  ....
+           | value1 | value2  | value3
+             ...       ...      ....
+
+           The columns are a multiindex with first level corresponding to
+           component types, and second level to the fields of those components
+        """
+        return pd.DataFrame(
+            {
+                (component, field): df[field]
+                for component, df in zip(self.components, self.data())
+                for field in df.columns
+            },
+            index=self.ids)

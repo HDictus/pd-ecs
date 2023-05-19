@@ -2,42 +2,38 @@ import pandas as pd
 import numpy as np
 import pytest as pyt
 from mock import MagicMock
-from pd_ecs import Component, World, System
+from pd_ecs import Component, World
 from pd_ecs.exceptions import ComponentError
 
 
-def test_world_has_components():
+def test_world_index_filters():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
-
-    print(world[component1])
-    pd.testing.assert_frame_equal(
-        world[component1],
-        pd.DataFrame(columns=['some', 'fields'], dtype=int))
-    pd.testing.assert_frame_equal(
-        world[component2],
-        pd.DataFrame(columns=['field'], dtype=int))
-
-
-def test_world_has_systems():
-
     world = World()
+    has_2 = world.add_entities({
+        component1: {'some': [1, 2], 'fields': [2, 3]},
+        component2: {'field': [4, 5]}})
+    _ = world.add_entities({
+        component1: {'some': [4, 5, 6], 'fields': [5, 6, 7]}})
+    expdict = {
+            (component1, 'some'): [1, 2],
+            (component1, 'fields'): [2, 3],
+            (component2, 'field'): [4, 5]}
+    exp = pd.DataFrame(
+        expdict,
+        index=has_2)
 
-    class Asys(System):
-        pass
-
-    inst = Asys(world)
-
-    assert world.systems[Asys] == inst
+    pd.testing.assert_frame_equal(
+        world[(component1, component2)].multi_frame(),
+        exp)
 
 
 def test_world_add_entities():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
 
     world.add_entities(
         {component1: {'some': [1, 2, 3, 4],
@@ -61,7 +57,7 @@ def test_world_add_entities_array():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
 
     # check that it works with tuples and arrays
     world.add_entities(
@@ -77,7 +73,7 @@ def world_add_entities_tuple():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
 
     world.add_entities(
         {component1: {'some': (1, 2, 3, 4),
@@ -93,7 +89,7 @@ def test_world_add_single_entity():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
 
     world.add_entities(
         {component1: {'some': 1,
@@ -104,7 +100,7 @@ def test_world_enties_single_value_extrapolated():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
 
     world.add_entities(
         {component1: {'some': 1,
@@ -116,7 +112,7 @@ def test_world_add_invalid_entities():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
     # mismatched numbers of entities
     with pyt.raises(ComponentError):
         world.add_entities(
@@ -138,7 +134,7 @@ def test_world_add_empty():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
     # mismatched numbers of entities
     world.add_entities(
         {component1: {'some': [], 'fields': []}})
@@ -148,7 +144,7 @@ def test_world_give():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
 
     world.add_entities(
         {component2: {'field': [1, 2, 3, 4, 5]}})
@@ -156,20 +152,20 @@ def test_world_give():
         {component1: {'some': ['d'],
                       'fields': ['b']}})
     world.give(
-        [1, 4, 2],
-        {component1: {'some': ['a', 'b', 'c'],
-                      'fields': ['g', 'e', 'f']}})
+        [1, 4, 2, 5],
+        {component1: {'some': ['a', 'b', 'c', 'a'],
+                      'fields': ['g', 'e', 'f', 'c']}})
 
-    assert list(world[component1].index) == [5, 1, 4, 2]
-    assert list(world[component1]['some']) == ['d', 'a', 'b', 'c']
-    assert list(world[component1]['fields']) == ['b', 'g', 'e', 'f']
+    assert list(world[component1].index) == [1, 4, 2, 5]
+    assert list(world[component1]['some']) == ['a', 'b', 'c', 'a']
+    assert list(world[component1]['fields']) == ['g', 'e', 'f', 'c']
 
 
 def test_world_take():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
-    world = World(component1, component2)
+    world = World()
     world.add_entities(
         {component1: {'some': ['b', 'c', 'd'],
                       'fields': ['g', 'e', 'f']},
@@ -181,7 +177,7 @@ def test_world_take():
 def test_world_remove_entities():
     component1 = Component('some', 'fields')
     component2 = Component('field')
-    world = World(component1, component2)
+    world = World()
 
     world.add_entities(
         {component2: {'field': [1, 2, 3, 4, 5]}})
@@ -195,25 +191,11 @@ def test_world_remove_entities():
     return
 
 
-def test_world_calls_system_events():
-    world = World()
-
-    class ASystem(System):
-
-        something_happens = MagicMock()
-
-    sys = ASystem(world)
-
-    world.events.something_happens('banana', 'fork')
-
-    sys.something_happens.assert_called_with('banana', 'fork')
-
-
 def test_world_set_state():
     comp1 = Component('a')
     comp2 = Component('b')
     comp3 = Component('c')
-    world = World(comp1, comp2, comp3)
+    world = World()
     state = {
         comp1: pd.DataFrame({'a': [0, 1, 2, 3, 4, 5, 6, 7]}),
         comp2: pd.DataFrame({'b': [1, 2, 3, 10]}),
@@ -223,22 +205,9 @@ def test_world_set_state():
         pd.testing.assert_frame_equal(world[comp], state[comp])
 
 
-def test_world_set_state_invalid_components():
-    comp1 = Component('a')
-    comp2 = Component('b')
-    comp3 = Component('c')
-    world = World(comp1, comp2)
-    state = {
-        comp1: pd.DataFrame({'a': [0, 1, 2, 3, 4, 5, 6, 7]}),
-        comp2: pd.DataFrame({'b': [1, 2, 3, 10]}),
-        comp3: pd.DataFrame({'c': [1, 2, 3, 4, 5, 6]})}
-    with pyt.raises(ComponentError):
-        world.set_state(state)
-
-
 def test_world_set_state_invalid_fields():
     comp1 = Component('a')
-    world = World(comp1)
+    world = World()
     state = {
         comp1: pd.DataFrame({'c': [0, 1, 2, 3, 4, 5, 6, 7]})}
     with pyt.raises(ComponentError):
@@ -248,7 +217,7 @@ def test_world_update():
     comp1 = Component('a')
     comp2 = Component('b')
     comp3 = Component('c')
-    world = World(comp1, comp2, comp3)
+    world = World()
     state = {
         comp1: pd.DataFrame({'a': [0, 1, 2, 3, 4, 5, 6, 7]}),
         comp2: pd.DataFrame({'b': [1, 2, 3, 10]}),
