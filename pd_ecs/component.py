@@ -1,5 +1,6 @@
 """Declaring components."""
 import pandas as pd
+from pd_ecs._filter_ops import Exclude
 
 unnamed_components: list = []
 
@@ -30,3 +31,6 @@ class Component:
 
     def __repr__(self):
         return f'{self.name} Component'
+
+    def __invert__(self):
+        return Exclude(self)
