@@ -54,7 +54,7 @@ class Filter:
         return self.world[comp].loc[self.ids]
 
     def multi_frame(self):
-        """Get all the filtered data as a dataframe with multiple column levels.
+        """Get all the filtered components as a single dataframe.
 
         Warning: this method is rather slow, use it sparingly.
 
@@ -68,7 +68,10 @@ class Filter:
            The columns are a multiindex with first level corresponding to
            component types, and second level to the fields of those components
         """
-        return pd.DataFrame({(component, field): df[field]
-                             for component, df in zip(self.components, self.data())
-                             for field in df.columns},
-                            index=self.ids)
+        return pd.DataFrame(
+            {
+                (component, field): df[field]
+                for component, df in zip(self.components, self.data())
+                for field in df.columns
+            },
+            index=self.ids)
