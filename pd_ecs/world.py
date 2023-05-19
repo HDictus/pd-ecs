@@ -50,11 +50,13 @@ class World:
 
     def _notify_filters_added(self, component, ids):
         """Inform the relevant filters ids have component now."""
+        # pylint: disable=protected-access
         for filt in self.filters_by_component[component]:
             filt._components_added(component, ids)
 
     def _notify_filters_removed(self, component, ids):
         """Inform the relevant filters ids no longer have component.e"""
+        # pylint: disable=protected-access
         for filt in self.filters_by_component[component]:
             filt._components_removed(component, ids)
 
