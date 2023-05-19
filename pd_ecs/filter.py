@@ -17,17 +17,14 @@ class Filter:
         self.components = components
         self.world = world
         self.ids = np.array([], dtype=np.int32)
-        self.add_components(
+        self._components_added(
             components, self.world[self.components[0]].index)
 
-        self.world.add_filter(self, components)
-
-    def add_components(self, component, ids):
+    def _components_added(self, component, ids):
         """
         Entities ids have had <component> added, check if they belong in
         the filter now.
         """
-        # TODO: another method that should not be user-facing
         for comp in self.components:
             if comp == component:
                 continue
@@ -37,7 +34,7 @@ class Filter:
 
         self.ids = np.unique(np.concatenate([self.ids, ids]))
 
-    def remove_components(self, _, ids):
+    def _components_removed(self, _, ids):
         """
         entities have had ids removed, they no longer belong in this list
         """

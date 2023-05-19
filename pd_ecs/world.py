@@ -30,9 +30,10 @@ class World:
         self.filters_by_component: dict = {}
         self.maxind = 0
 
-    def add_filter(self, filt, components):
+    def _add_filter(self, components):
         """Add a new filter to the world."""
-        # TODO: this is not the best way to do this - we have a public method here confusing users
+        filt = Filter(*components, world=self)
+        self._filters[components] = filt
         for comp in components:
             if comp not in self.filters_by_component:
                 self._initialize_state((comp, ))
@@ -41,21 +42,21 @@ class World:
     def __getitem__(self, key):
         if isinstance(key, tuple):
             if key not in self._filters:
-                self._filters[key] = Filter(*key, world=self)
+                self._add_filter(key)
             return self._filters[key]
         if key not in self._dict:
             self._initialize_state((key,))
         return self._dict[key]
 
-    def notify_filters_added(self, component, ids):
+    def _notify_filters_added(self, component, ids):
         """Inform the relevant filters ids have component now."""
         for filt in self.filters_by_component[component]:
-            filt.add_components(component, ids)
+            filt._components_added(component, ids)
 
-    def notify_filters_removed(self, component, ids):
+    def _notify_filters_removed(self, component, ids):
         """Inform the relevant filters ids no longer have component.e"""
         for filt in self.filters_by_component[component]:
-            filt.remove_components(component, ids)
+            filt._components_removed(component, ids)
 
     def _initialize_state(self, components: Iterable):
         for component in components:
@@ -96,7 +97,7 @@ class World:
     def _add_components(self, frames, indices):
         for comp, frame in frames.items():
             self._add_component(comp, frame, indices)
-            self.notify_filters_added(comp, indices)
+            self._notify_filters_added(comp, indices)
 
     def _add_component(self, comp, frame, indices, keep='last'):
         if comp not in self._dict:
@@ -125,7 +126,7 @@ class World:
         """Remove given components from entities corresponding to ids."""
         for component in components:
             self._dict[component].drop(ids, inplace=True)
-            self.notify_filters_removed(component, ids)
+            self._notify_filters_removed(component, ids)
 
     def remove_entities(self, ids):
         """
@@ -138,7 +139,7 @@ class World:
         for comp, data in self._dict.items():
             ids_in = np.intersect1d(ids, data.index)
             data.drop(ids_in, inplace=True)
-            self.notify_filters_removed(comp, ids)
+            self._notify_filters_removed(comp, ids)
 
     def update(self, components: Dict[Component, pd.DataFrame]):
         """
