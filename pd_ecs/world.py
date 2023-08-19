@@ -29,6 +29,14 @@ class LocIndexer:
             )
         return self.world[key[1]].loc[key[0]]
 
+    def __setitem__(self, key, values):
+        if not isinstance(key, tuple):
+            raise ValueError(
+                "Loc indexing without components is not supported"
+            )
+        index = key[0]
+        cols = key[1]
+        self.world[cols].loc[index] = values
 
 class World:
     """

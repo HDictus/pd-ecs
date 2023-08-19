@@ -303,6 +303,22 @@ def test_world_update():
     })
 
 
+def test_world_setting():
+    comp1 = Component('a', 'b')
+    world = World()
+    world.add_entities({comp1: {
+        'a': [1, 2, 3, 4, 5], 
+        'b': [0, 1, 3, 2, 1]}})
+    world.loc[0, comp1] = 4
+    assert world.loc[0, comp1.a] == 4
+    world.loc[[1, 2], comp1.b] = 5
+    assert all(world.loc[[1, 2], comp1.b] == 5)
+    world.loc[[3, 4], [comp1]] = [[1, 2], [3, 4]]
+    assert all(world[comp1].loc[[3, 4]] == [[1, 2], [3, 4]])
+    with pyt.raises(ValueError):
+        world.loc[3] = 1
+
+
 # add loc indexing
 # add ability to set/remove via list indexing too
 # add benchmarking tools
