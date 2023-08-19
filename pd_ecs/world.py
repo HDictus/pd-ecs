@@ -8,6 +8,7 @@ World.events.<event_name> calls that event for all systems in the world
 from collections.abc import Iterable
 import warnings
 from typing import Dict
+from lazy import lazy
 import pandas as pd
 import numpy as np
 from .exceptions import ComponentError
@@ -15,6 +16,18 @@ from .component import Component, Exclude
 from .filter import Filter
 from ._filter_ops import Exclude
 
+
+class LocIndexer:
+
+    def __init__(self, world):
+        self.world = world
+
+    def __getitem__(self, key):
+        if not isinstance(key, tuple):
+            raise ValueError(
+                "Loc indexing without components is not supported."
+            )
+        return self.world[key[1]].loc[key[0]]
 
 
 class World:
@@ -73,6 +86,10 @@ class World:
         if key not in self._dict:
             self._initialize_state((key,))
         return self._dict[key]
+
+    @lazy
+    def loc(self):
+        return LocIndexer(self)
 
     def _notify_filters_added(self, component, ids):
         """Inform the relevant filters ids have component now."""

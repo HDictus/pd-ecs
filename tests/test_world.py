@@ -27,6 +27,35 @@ def test_world_index_filters():
     pd.testing.assert_frame_equal(
         world[[component1, component2]],
         exp)
+    
+
+def test_world_with_loc():
+    component1 = Component('some', 'columns')
+    component2 = Component('field')
+
+    world = World()
+    has_2 = world.add_entities({
+        component1: {'some': [1, 2], 'columns': [2, 3]},
+        component2: {'field': [4, 5]}})
+    _ = world.add_entities({
+        component1: {'some': [4, 5, 6], 'columns': [5, 6, 7]}})
+    expdict = {
+            (component1, 'some'): [1, 2],
+            (component1, 'columns'): [2, 3],
+            (component2, 'field'): [4, 5]}
+    exp = pd.DataFrame(
+        expdict,
+        index=has_2)
+
+    pd.testing.assert_series_equal(
+        world.loc[0, [component1, component2]],
+        exp.loc[0])
+    pd.testing.assert_frame_equal(
+        world.loc[[0, 1], component1], exp[component1]
+    )
+    with pyt.raises(ValueError):
+        world.loc[[0, 1]]
+
 
 def test_world_index_component_field():
     component1 = Component('some', 'columns')
@@ -274,7 +303,6 @@ def test_world_update():
     })
 
 
-# deprecate filters
 # add loc indexing
 # add ability to set/remove via list indexing too
 # add benchmarking tools
