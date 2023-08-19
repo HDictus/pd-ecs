@@ -17,6 +17,18 @@ from .filter import Filter
 from ._filter_ops import Exclude
 
 
+def _stack_component_columns(cols):
+    if not isinstance(cols, list):
+         cols = [cols]
+    columns = []
+    for col in cols:
+        if isinstance(col, Component):
+            columns += [(col, field) for field in col.fields]
+        else:
+            columns.append(col)
+    return columns
+
+
 class LocIndexer:
 
     def __init__(self, world):
@@ -38,21 +50,23 @@ class LocIndexer:
         index = key[0]
         if pd.api.types.is_scalar(index):
             index = [index]
-        cols = key[1]
-        if not isinstance(cols, list):
-            cols = [cols]
-        columns = []
-        for col in cols:
-            if isinstance(col, Component):
-                columns += [(col, field) for field in col.fields]
-            else:
-                columns.append(col)
+        columns = _stack_component_columns(key[1])
         df = pd.DataFrame(index=index, columns=columns)
         df[:] = values
         for column in columns:
             self.world[column].loc[index] =  df[column]
-   
-
+     
+    def __delitem__(self, key):
+        if not isinstance(key, tuple):
+            return self.world.remove_entities(key)
+        index = key[0]
+        cols = key[1]
+        if not isinstance(cols, list):
+            cols = [cols]
+        components = [c if isinstance(c, Component) else c[0]
+                      for c in cols]
+        self.world.take(index, *components)
+            
 class World:
     """
     The World stores and manages the state and events of the simulation.

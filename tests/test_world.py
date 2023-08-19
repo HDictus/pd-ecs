@@ -331,6 +331,31 @@ def test_world_setting():
         world.loc[3] = 1
 
 
+def test_world_loc_del():
+    comp1 = Component('a', 'b')
+    comp2 = Component('c')
+    world = World()
+    world.add_entities({comp1: {
+        'a': [1, 2, 3, 4, 5], 
+        'b': [0, 1, 3, 2, 1]}})
+    world.add_entities({
+        comp1: {
+            'a': [1, 2],
+            'b': [3, 4]},
+        comp2: {
+            'c': [3, 3]
+        }
+    })
+    del world.loc[[1, 2]]
+    assert all(world[comp1]['a'].values == [1, 4, 5, 1, 2])
+    assert all(world[comp1].index == [0, 3, 4, 5, 6])
+    del world.loc[5, comp2]
+    assert all(world[comp2].index == 6)
+    assert all(world[comp1]['a'].values == [1, 4, 5, 1, 2])
+    del world.loc[[6], [comp1, comp2]]
+    assert all(world[comp1]['a'].values == [1, 4, 5, 1])
+    assert all(world[comp1].index == [0, 3, 4, 5])
+
 # add loc indexing
 # add ability to set/remove via list indexing too
 # add benchmarking tools
