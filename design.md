@@ -121,3 +121,11 @@ TODO: when you initialize with a nonexistent component, the error should be obvi
 (OR, should any use of a component add it to the world?)
 
 TODO: when an error is raised in the invocation of an event, the error message should tell us which event on which system
+
+What about different organization
+=================================
+
+e.g. grouping a subset of entities into one dataframe based on being accessed together frequently
+or group all together and fill in nans
+or other schemes.
+role of architecture then is to separate the specific dataframe implementation from the operations to perform on them.

@@ -10,7 +10,7 @@ from typing import Dict
 import pandas as pd
 import numpy as np
 from .exceptions import ComponentError
-from .component import Component
+from .component import Component, Exclude
 from .filter import Filter
 from ._filter_ops import Exclude
 
@@ -44,10 +44,26 @@ class World:
             self.filters_by_component[comp].append(filt)
 
     def __getitem__(self, key):
+        if isinstance(key, list):
+            labels = [k[0] if isinstance(k, tuple) else k
+                      for k in key]
+            exclude = [k for k in key if isinstance(k, Exclude)]
+            to_concat = [self[k] for k in key if k not in exclude]
+            for exclude_component in exclude:
+                excluded = to_concat[0].index.intersection(
+                    self[exclude_component.component].index)
+                to_concat[0] = to_concat[0].drop(excluded, axis=0)
+            return pd.concat(
+                to_concat,
+                join='inner', axis=1, keys=labels)
         if isinstance(key, tuple):
+            if len(key) == 2 and isinstance(key[1], str):
+                return self[key[0]][key[1]]
+            
             if key not in self._filters:
                 self._add_filter(key)
             return self._filters[key]
+
         if key not in self._dict:
             self._initialize_state((key,))
         return self._dict[key]

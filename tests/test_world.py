@@ -25,7 +25,49 @@ def test_world_index_filters():
         index=has_2)
 
     pd.testing.assert_frame_equal(
-        world[(component1, component2)].multi_frame(),
+        world[[component1, component2]],
+        exp)
+
+def test_world_index_component_field():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
+
+    world = World()
+    has_2 = world.add_entities({
+        component1: {'some': [1, 2], 'fields': [2, 3]},
+        component2: {'field': [4, 5]}})
+    _ = world.add_entities({
+        component1: {'some': [4, 5, 6], 'fields': [5, 6, 7]}})
+    expdict = {
+            (component1, 'some'): [1, 2],
+            (component2, 'field'): [4, 5]}
+    exp = pd.DataFrame(
+        expdict,
+        index=has_2)
+
+    pd.testing.assert_frame_equal(
+        world[[(component1, 'some'), component2]],
+        exp)
+
+def test_world_index_negation():
+    component1 = Component('some', 'fields')
+    component2 = Component('field')
+
+    world = World()
+    has_2 = world.add_entities({
+        component1: {'some': [1, 2], 'fields': [2, 3]},
+        component2: {'field': [4, 5]}})
+    has1 = world.add_entities({
+        component1: {'some': [4, 5, 6], 'fields': [5, 6, 7]}})
+    expdict = {
+            (component1, 'some'): [4, 5, 6],
+            (component1, 'fields'): [5, 6, 7]}
+    exp = pd.DataFrame(
+        expdict,
+        index=has1)
+
+    pd.testing.assert_frame_equal(
+        world[[component1, ~component2]],
         exp)
 
 
@@ -53,6 +95,7 @@ def test_world_add_entities():
     assert not any(np.isin(newentities_index, world[component1].index))
     assert new == [4, 5, 6]
 
+
 def test_world_add_entities_array():
     component1 = Component('some', 'fields')
     component2 = Component('field')
@@ -69,7 +112,7 @@ def test_world_add_entities_array():
         pd.DataFrame({'some': [1, 2, 3, 4],
                       'fields': [5, 4, 2, 1]}))
 
-def world_add_entities_tuple():
+def test_world_add_entities_tuple():
     component1 = Component('some', 'fields')
     component2 = Component('field')
 
@@ -204,7 +247,6 @@ def test_world_set_state():
     for comp in state:
         pd.testing.assert_frame_equal(world[comp], state[comp])
 
-
 def test_world_set_state_invalid_fields():
     comp1 = Component('a')
     world = World()
@@ -223,6 +265,7 @@ def test_world_update():
         comp2: pd.DataFrame({'b': [1, 2, 3, 10]}),
         comp3: pd.DataFrame({'c': [1, 2, 3, 4, 5, 6]})}
     world.set_state(state)
-    world.update({comp1: pd.DataFrame({'a': [0, 3, 2, 4]}, index=[3, 2, 5, 1]),
-                  comp3: pd.DataFrame({'c': [1, 6, 3, 4]}, index=[1, 4, 2, 0])
+    world.update({
+        comp1: pd.DataFrame({'a': [0, 3, 2, 4]}, index=[3, 2, 5, 1]),
+        comp3: pd.DataFrame({'c': [1, 6, 3, 4]}, index=[1, 4, 2, 0])
     })
