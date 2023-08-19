@@ -234,6 +234,7 @@ def test_world_remove_entities():
     return
 
 
+
 def test_world_set_state():
     comp1 = Component('a')
     comp2 = Component('b')
@@ -244,8 +245,9 @@ def test_world_set_state():
         comp2: pd.DataFrame({'b': [1, 2, 3, 10]}),
         comp3: pd.DataFrame({'c': [1, 2, 3, 4, 5, 6]})}
     world.set_state(state)
-    for comp in state:
+    for comp in state.keys():
         pd.testing.assert_frame_equal(world[comp], state[comp])
+
 
 def test_world_set_state_invalid_fields():
     comp1 = Component('a')
@@ -254,6 +256,7 @@ def test_world_set_state_invalid_fields():
         comp1: pd.DataFrame({'c': [0, 1, 2, 3, 4, 5, 6, 7]})}
     with pyt.raises(ComponentError):
         world.set_state(state)
+
 
 def test_world_update():
     comp1 = Component('a')
@@ -269,3 +272,11 @@ def test_world_update():
         comp1: pd.DataFrame({'a': [0, 3, 2, 4]}, index=[3, 2, 5, 1]),
         comp3: pd.DataFrame({'c': [1, 6, 3, 4]}, index=[1, 4, 2, 0])
     })
+
+
+# deprecate filters
+# add loc indexing
+# add ability to set/remove via list indexing too
+# add benchmarking tools
+# remove filters
+# if performance issues: explore multiple implementations with benchmarking

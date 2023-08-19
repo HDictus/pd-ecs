@@ -6,6 +6,7 @@ Systems are added to the world.
 World.events.<event_name> calls that event for all systems in the world
 """
 from collections.abc import Iterable
+import warnings
 from typing import Dict
 import pandas as pd
 import numpy as np
@@ -13,6 +14,7 @@ from .exceptions import ComponentError
 from .component import Component, Exclude
 from .filter import Filter
 from ._filter_ops import Exclude
+
 
 
 class World:
@@ -36,7 +38,11 @@ class World:
         filt = Filter(*components, world=self)
         self._filters[components] = filt
         for comp in components:
-            # TODO: seems like poor separation of concerns
+            warnings.warn(
+                "Component filters will be disabled in a future version. "
+                "Get filtered dataframes directly by indexing the world with a list "
+                "of components (world[[component1, component2]]).",
+                DeprecationWarning)
             if isinstance(comp, Exclude):
                 comp = comp.component
             if comp not in self.filters_by_component:
