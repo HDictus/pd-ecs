@@ -305,16 +305,28 @@ def test_world_update():
 
 def test_world_setting():
     comp1 = Component('a', 'b')
+    comp2 = Component('c')
     world = World()
     world.add_entities({comp1: {
         'a': [1, 2, 3, 4, 5], 
         'b': [0, 1, 3, 2, 1]}})
+    world.add_entities({
+        comp1: {
+            'a': [1, 2],
+            'b': [3, 4]},
+        comp2: {
+            'c': [3, 3]
+        }
+    })
     world.loc[0, comp1] = 4
     assert world.loc[0, comp1.a] == 4
     world.loc[[1, 2], comp1.b] = 5
     assert all(world.loc[[1, 2], comp1.b] == 5)
     world.loc[[3, 4], [comp1]] = [[1, 2], [3, 4]]
     assert all(world[comp1].loc[[3, 4]] == [[1, 2], [3, 4]])
+
+    world.loc[5, [comp1, comp2]] = [1, 2, 3]
+    assert all(world.loc[5, [comp1, comp2]].values == [1, 2, 3])
     with pyt.raises(ValueError):
         world.loc[3] = 1
 

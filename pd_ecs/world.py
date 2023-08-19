@@ -34,9 +34,24 @@ class LocIndexer:
             raise ValueError(
                 "Loc indexing without components is not supported"
             )
+
         index = key[0]
+        if pd.api.types.is_scalar(index):
+            index = [index]
         cols = key[1]
-        self.world[cols].loc[index] = values
+        if not isinstance(cols, list):
+            cols = [cols]
+        columns = []
+        for col in cols:
+            if isinstance(col, Component):
+                columns += [(col, field) for field in col.fields]
+            else:
+                columns.append(col)
+        df = pd.DataFrame(index=index, columns=columns)
+        df[:] = values
+        for column in columns:
+            self.world[column].loc[index] =  df[column]
+   
 
 class World:
     """
