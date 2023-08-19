@@ -7,18 +7,18 @@ from pd_ecs.exceptions import ComponentError
 
 
 def test_world_index_filters():
-    component1 = Component('some', 'fields')
+    component1 = Component('some', 'columns')
     component2 = Component('field')
 
     world = World()
     has_2 = world.add_entities({
-        component1: {'some': [1, 2], 'fields': [2, 3]},
+        component1: {'some': [1, 2], 'columns': [2, 3]},
         component2: {'field': [4, 5]}})
     _ = world.add_entities({
-        component1: {'some': [4, 5, 6], 'fields': [5, 6, 7]}})
+        component1: {'some': [4, 5, 6], 'columns': [5, 6, 7]}})
     expdict = {
             (component1, 'some'): [1, 2],
-            (component1, 'fields'): [2, 3],
+            (component1, 'columns'): [2, 3],
             (component2, 'field'): [4, 5]}
     exp = pd.DataFrame(
         expdict,
@@ -29,15 +29,15 @@ def test_world_index_filters():
         exp)
 
 def test_world_index_component_field():
-    component1 = Component('some', 'fields')
+    component1 = Component('some', 'columns')
     component2 = Component('field')
 
     world = World()
     has_2 = world.add_entities({
-        component1: {'some': [1, 2], 'fields': [2, 3]},
+        component1: {'some': [1, 2], 'columns': [2, 3]},
         component2: {'field': [4, 5]}})
     _ = world.add_entities({
-        component1: {'some': [4, 5, 6], 'fields': [5, 6, 7]}})
+        component1: {'some': [4, 5, 6], 'columns': [5, 6, 7]}})
     expdict = {
             (component1, 'some'): [1, 2],
             (component2, 'field'): [4, 5]}
@@ -50,18 +50,18 @@ def test_world_index_component_field():
         exp)
 
 def test_world_index_negation():
-    component1 = Component('some', 'fields')
+    component1 = Component('some', 'columns')
     component2 = Component('field')
 
     world = World()
     has_2 = world.add_entities({
-        component1: {'some': [1, 2], 'fields': [2, 3]},
+        component1: {'some': [1, 2], 'columns': [2, 3]},
         component2: {'field': [4, 5]}})
     has1 = world.add_entities({
-        component1: {'some': [4, 5, 6], 'fields': [5, 6, 7]}})
+        component1: {'some': [4, 5, 6], 'columns': [5, 6, 7]}})
     expdict = {
             (component1, 'some'): [4, 5, 6],
-            (component1, 'fields'): [5, 6, 7]}
+            (component1, 'columns'): [5, 6, 7]}
     exp = pd.DataFrame(
         expdict,
         index=has1)
@@ -72,19 +72,19 @@ def test_world_index_negation():
 
 
 def test_world_add_entities():
-    component1 = Component('some', 'fields')
+    component1 = Component('some', 'columns')
     component2 = Component('field')
 
     world = World()
 
     world.add_entities(
         {component1: {'some': [1, 2, 3, 4],
-                      'fields': [5, 4, 2, 1]}})
+                      'columns': [5, 4, 2, 1]}})
 
     pd.testing.assert_frame_equal(
         world[component1],
         pd.DataFrame({'some': [1, 2, 3, 4],
-                      'fields': [5, 4, 2, 1]}))
+                      'columns': [5, 4, 2, 1]}))
 
     # check they have unique ids
 
@@ -97,7 +97,7 @@ def test_world_add_entities():
 
 
 def test_world_add_entities_array():
-    component1 = Component('some', 'fields')
+    component1 = Component('some', 'columns')
     component2 = Component('field')
 
     world = World()
@@ -105,54 +105,54 @@ def test_world_add_entities_array():
     # check that it works with tuples and arrays
     world.add_entities(
         {component1: {'some': np.array([1, 2, 3, 4]),
-                      'fields': np.array([5, 4, 2, 1])}})
+                      'columns': np.array([5, 4, 2, 1])}})
 
     pd.testing.assert_frame_equal(
         world[component1],
         pd.DataFrame({'some': [1, 2, 3, 4],
-                      'fields': [5, 4, 2, 1]}))
+                      'columns': [5, 4, 2, 1]}))
 
 def test_world_add_entities_tuple():
-    component1 = Component('some', 'fields')
+    component1 = Component('some', 'columns')
     component2 = Component('field')
 
     world = World()
 
     world.add_entities(
         {component1: {'some': (1, 2, 3, 4),
-                      'fields': (5, 4, 2, 1)}})
+                      'columns': (5, 4, 2, 1)}})
 
     pd.testing.assert_frame_equal(
         world[component1],
         pd.DataFrame({'some': [1, 2, 3, 4],
-                      'fields': [5, 4, 2, 1]}))
+                      'columns': [5, 4, 2, 1]}))
 
 
 def test_world_add_single_entity():
-    component1 = Component('some', 'fields')
+    component1 = Component('some', 'columns')
     component2 = Component('field')
 
     world = World()
 
     world.add_entities(
         {component1: {'some': 1,
-                      'fields': 5}})
+                      'columns': 5}})
 
 
 def test_world_enties_single_value_extrapolated():
-    component1 = Component('some', 'fields')
+    component1 = Component('some', 'columns')
     component2 = Component('field')
 
     world = World()
 
     world.add_entities(
         {component1: {'some': 1,
-                      'fields': 5},
+                      'columns': 5},
          component2: {'field': ['a', 'b', 'c']}})
 
 
 def test_world_add_invalid_entities():
-    component1 = Component('some', 'fields')
+    component1 = Component('some', 'columns')
     component2 = Component('field')
 
     world = World()
@@ -160,7 +160,7 @@ def test_world_add_invalid_entities():
     with pyt.raises(ComponentError):
         world.add_entities(
             {component1: {'some': ['a', 'b'],
-                          'fields': ['d', 'e']},
+                          'columns': ['d', 'e']},
              component2: {'field': ['a']}})
     # invalid component field
     with pyt.raises(ComponentError):
@@ -171,20 +171,20 @@ def test_world_add_invalid_entities():
     # in the future, replace with type-dependent defaults
     world.add_entities(
             {component1: {'some': ['b', 'c']}})
-    assert np.isnan(world[component1]['fields']).all()
+    assert np.isnan(world[component1]['columns']).all()
 
 def test_world_add_empty():
-    component1 = Component('some', 'fields')
+    component1 = Component('some', 'columns')
     component2 = Component('field')
 
     world = World()
     # mismatched numbers of entities
     world.add_entities(
-        {component1: {'some': [], 'fields': []}})
+        {component1: {'some': [], 'columns': []}})
     assert(world[component1].shape[0] == 0)
 
 def test_world_give():
-    component1 = Component('some', 'fields')
+    component1 = Component('some', 'columns')
     component2 = Component('field')
 
     world = World()
@@ -193,32 +193,32 @@ def test_world_give():
         {component2: {'field': [1, 2, 3, 4, 5]}})
     world.add_entities(
         {component1: {'some': ['d'],
-                      'fields': ['b']}})
+                      'columns': ['b']}})
     world.give(
         [1, 4, 2, 5],
         {component1: {'some': ['a', 'b', 'c', 'a'],
-                      'fields': ['g', 'e', 'f', 'c']}})
+                      'columns': ['g', 'e', 'f', 'c']}})
 
     assert list(world[component1].index) == [1, 4, 2, 5]
     assert list(world[component1]['some']) == ['a', 'b', 'c', 'a']
-    assert list(world[component1]['fields']) == ['g', 'e', 'f', 'c']
+    assert list(world[component1]['columns']) == ['g', 'e', 'f', 'c']
 
 
 def test_world_take():
-    component1 = Component('some', 'fields')
+    component1 = Component('some', 'columns')
     component2 = Component('field')
 
     world = World()
     world.add_entities(
         {component1: {'some': ['b', 'c', 'd'],
-                      'fields': ['g', 'e', 'f']},
+                      'columns': ['g', 'e', 'f']},
          component2: {'field': [1, 2, 3]}})
     world.take([1], component1)
     assert list(world[component1].index) == [0, 2]
 
 
 def test_world_remove_entities():
-    component1 = Component('some', 'fields')
+    component1 = Component('some', 'columns')
     component2 = Component('field')
     world = World()
 
@@ -226,7 +226,7 @@ def test_world_remove_entities():
         {component2: {'field': [1, 2, 3, 4, 5]}})
     world.add_entities(
         {component1: {'some': ['d'],
-                      'fields': ['b']}})
+                      'columns': ['b']}})
 
     world.remove_entities([3, 4, 5])
     assert list(world[component2].index) == [0, 1, 2]
