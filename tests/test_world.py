@@ -327,6 +327,10 @@ def test_world_setting():
 
     world.loc[5, [comp1, comp2]] = [1, 2, 3]
     assert all(world.loc[5, [comp1, comp2]].values == [1, 2, 3])
+
+    world.loc[[1, 2], comp1.a] = [1, 2]
+    assert all(world.loc[[1, 2], comp1.a] == [1, 2])
+    
     with pyt.raises(ValueError):
         world.loc[3] = 1
 
@@ -355,6 +359,7 @@ def test_world_loc_del():
     del world.loc[[6], [comp1, comp2]]
     assert all(world[comp1]['a'].values == [1, 4, 5, 1])
     assert all(world[comp1].index == [0, 3, 4, 5])
+
 
 # add loc indexing
 # add ability to set/remove via list indexing too

@@ -51,6 +51,9 @@ class LocIndexer:
         if pd.api.types.is_scalar(index):
             index = [index]
         columns = _stack_component_columns(key[1])
+        if len(columns) == 1:
+            self.world[columns[0]].loc[index] = values
+            return
         df = pd.DataFrame(index=index, columns=columns)
         df[:] = values
         for column in columns:
