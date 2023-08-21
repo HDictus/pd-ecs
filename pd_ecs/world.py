@@ -107,7 +107,9 @@ class World:
             labels = [k[0] if isinstance(k, tuple) else k
                       for k in key]
             exclude = [k for k in key if isinstance(k, Exclude)]
-            to_concat = [self[k] for k in key if k not in exclude]
+            to_concat = [self[k] if isinstance(k, Component) 
+                         else pd.DataFrame(self[k])
+                         for k in key if k not in exclude]
             for exclude_component in exclude:
                 excluded = to_concat[0].index.intersection(
                     self[exclude_component.component].index)

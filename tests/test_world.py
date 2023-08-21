@@ -28,6 +28,26 @@ def test_world_index_filters():
         world[[component1, component2]],
         exp)
     
+def test_world_index_with_field():
+    component1 = Component('some', 'columns')
+    component2 = Component('field')
+
+    world = World()
+    has_2 = world.add_entities({
+        component1: {'some': [1, 2], 'columns': [2, 3]},
+        component2: {'field': [4, 5]}})
+    _ = world.add_entities({
+        component1: {'some': [4, 5, 6], 'columns': [5, 6, 7]}})
+    expdict = {
+            (component1, 'some'): [1, 2],
+            (component2, 'field'): [4, 5]}
+    exp = pd.DataFrame(
+        expdict,
+        index=has_2)
+
+    pd.testing.assert_frame_equal(
+        world[[component1.some, component2.field]],
+        exp)
 
 def test_world_with_loc():
     component1 = Component('some', 'columns')
