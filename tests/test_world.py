@@ -49,6 +49,7 @@ def test_world_index_with_field():
         world[[component1.some, component2.field]],
         exp)
 
+
 def test_world_with_loc():
     component1 = Component('some', 'columns')
     component2 = Component('field')
@@ -143,6 +144,13 @@ def test_world_add_entities():
     newentities_index = world[component2].index
     assert not any(np.isin(newentities_index, world[component1].index))
     assert new == [4, 5, 6]
+
+    # check that this also works with dataframes
+    new = world.add_entities(
+        {component2: pd.DataFrame({'field': [1, 8, 9]})})
+
+    assert all(world[component2].loc[new, 'field'] == [1, 8, 9])
+    assert new == [7, 8, 9]
 
 
 def test_world_add_entities_array():

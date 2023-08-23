@@ -261,6 +261,13 @@ def _number_of_entities(components):
 
 
 def _component_dataframes(components, indices):
-    frames = {component: pd.DataFrame(value, index=indices)
-              for component, value in components.items()}
+    frames = {}
+    for component, value in components.items():
+        if isinstance(value, pd.DataFrame):
+            value = value.copy()
+            value.index = indices
+            frames[component] = value
+            continue
+        frames[component] = pd.DataFrame(value, index=indices)
+
     return frames
