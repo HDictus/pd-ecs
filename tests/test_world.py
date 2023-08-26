@@ -27,7 +27,14 @@ def test_world_index_filters():
     pd.testing.assert_frame_equal(
         world[[component1, component2]],
         exp)
-    
+
+  
+def test_informative_error_accidental_int_index():
+    world = World()
+    with pyt.raises(KeyError):
+        world.loc[1, 2, 'comp']
+
+  
 def test_world_index_with_field():
     component1 = Component('some', 'columns')
     component2 = Component('field')
@@ -356,8 +363,11 @@ def test_world_setting():
     world.loc[5, [comp1, comp2]] = [1, 2, 3]
     assert all(world.loc[5, [comp1, comp2]].values == [1, 2, 3])
 
-    world.loc[[1, 2], comp1.a] = [1, 2]
-    assert all(world.loc[[1, 2], comp1.a] == [1, 2])
+    world.loc[[1, 2], comp1.a] = [1, 3]
+    assert all(world.loc[[1, 2], comp1.a] == [1, 3])
+    
+    world.loc[[5, 6], comp2] /= 2
+    assert all(world.loc[[5, 6], comp2] == [0.5, 1.5])
     
     with pyt.raises(ValueError):
         world.loc[3] = 1
