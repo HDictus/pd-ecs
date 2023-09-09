@@ -39,16 +39,8 @@ class LocIndexer:
             raise ValueError(
                 "Loc indexing without components is not supported."
             )
-        try:
-            return self.world[key[1]].loc[key[0]]
-        except AttributeError as attrerr:
-            if not isinstance(key[1], Component):
-                raise KeyError(
-                    f"Tried to get component {key[1]} which is not"
-                    " a component."
-                    " full index was {key}. "
-                ) from attrerr
-            raise attrerr
+
+        return self.world[key[1]].loc[key[0]]
 
     def __setitem__(self, key, values):
         if not isinstance(key, tuple):
@@ -140,6 +132,11 @@ class World:
             return self._filters[key]
 
         if key not in self._dict:
+            if not isinstance(key, Component):
+                raise KeyError(
+                    "Attempted to get component {key}, which is not"
+                    " a component."
+                )
             self._initialize_state((key,))
         return self._dict[key]
 
