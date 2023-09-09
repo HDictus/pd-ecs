@@ -12,7 +12,7 @@ from lazy import lazy
 import pandas as pd
 import numpy as np
 from .exceptions import ComponentError
-from .component import Component, Exclude
+from .component import Component
 from .filter import Filter
 from ._filter_ops import Exclude
 
@@ -30,6 +30,7 @@ def _stack_component_columns(cols):
 
 
 class LocIndexer:
+    """Entity indexer, works like pandas .loc attribute."""
 
     def __init__(self, world):
         self.world = world
@@ -60,11 +61,12 @@ class LocIndexer:
                     values = values[columns[0]]
             self.world[columns[0]].loc[index] = values
             return
+        # pylint: disable=invalid-name
         df = pd.DataFrame(index=index, columns=columns)
         df[:] = values
         for column in columns:
             self.world[column].loc[index] =  df[column]
-     
+
     def __delitem__(self, key):
         if not isinstance(key, tuple):
             return self.world.remove_entities(key)
@@ -75,7 +77,7 @@ class LocIndexer:
         components = [c if isinstance(c, Component) else c[0]
                       for c in cols]
         self.world.take(index, *components)
-            
+
 class World:
     """
     The World stores and manages the state and events of the simulation.
@@ -113,7 +115,7 @@ class World:
             labels = [k[0] if isinstance(k, tuple) else k
                       for k in key]
             exclude = [k for k in key if isinstance(k, Exclude)]
-            to_concat = [self[k] if isinstance(k, Component) 
+            to_concat = [self[k] if isinstance(k, Component)
                          else pd.DataFrame(self[k])
                          for k in key if k not in exclude]
             for exclude_component in exclude:
@@ -126,7 +128,7 @@ class World:
         if isinstance(key, tuple):
             if len(key) == 2 and isinstance(key[1], str):
                 return self[key[0]][key[1]]
-            
+
             if key not in self._filters:
                 self._add_filter(key)
             return self._filters[key]
