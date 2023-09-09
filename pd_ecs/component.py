@@ -46,7 +46,5 @@ class Component:
     def __repr__(self):
         return f'{self.name} Component'
 
-
-
     def __invert__(self):
         return Exclude(self)

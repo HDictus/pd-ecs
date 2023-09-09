@@ -19,7 +19,7 @@ from ._filter_ops import Exclude
 
 def _stack_component_columns(cols):
     if not isinstance(cols, list):
-         cols = [cols]
+        cols = [cols]
     columns = []
     for col in cols:
         if isinstance(col, Component):
@@ -65,11 +65,12 @@ class LocIndexer:
         df = pd.DataFrame(index=index, columns=columns)
         df[:] = values
         for column in columns:
-            self.world[column].loc[index] =  df[column]
+            self.world[column].loc[index] = df[column]
 
     def __delitem__(self, key):
         if not isinstance(key, tuple):
-            return self.world.remove_entities(key)
+            self.world.remove_entities(key)
+            return
         index = key[0]
         cols = key[1]
         if not isinstance(cols, list):
@@ -77,6 +78,7 @@ class LocIndexer:
         components = [c if isinstance(c, Component) else c[0]
                       for c in cols]
         self.world.take(index, *components)
+
 
 class World:
     """
@@ -100,8 +102,10 @@ class World:
         self._filters[components] = filt
         for comp in components:
             warnings.warn(
-                "Component filters will be disabled in a future version. "
-                "Get filtered dataframes directly by indexing the world with a list "
+                "Component filters will be disabled in a future "
+                "version. "
+                "Get filtered dataframes directly by indexing the"
+                " world with a list "
                 "of components (world[[component1, component2]]).",
                 DeprecationWarning)
             if isinstance(comp, Exclude):
@@ -144,6 +148,7 @@ class World:
 
     @lazy
     def loc(self):
+        """Loc indexer, like pandas.DataFrame.loc."""
         return LocIndexer(self)
 
     def _notify_filters_added(self, component, ids):

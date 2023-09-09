@@ -401,8 +401,6 @@ def test_world_loc_del():
     assert all(world[comp1].index == [0, 3, 4, 5])
 
 
-# add loc indexing
-# add ability to set/remove via list indexing too
 # add benchmarking tools
 # remove filters
 # if performance issues: explore multiple implementations with benchmarking
