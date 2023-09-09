@@ -39,7 +39,16 @@ class LocIndexer:
             raise ValueError(
                 "Loc indexing without components is not supported."
             )
-        return self.world[key[1]].loc[key[0]]
+        try:
+            return self.world[key[1]].loc[key[0]]
+        except AttributeError as attrerr:
+            if not isinstance(key[1], Component):
+                raise KeyError(
+                    f"Tried to get component {key[1]} which is not"
+                    " a component."
+                    " full index was {key}. "
+                ) from attrerr
+            raise attrerr
 
     def __setitem__(self, key, values):
         if not isinstance(key, tuple):
@@ -52,6 +61,11 @@ class LocIndexer:
             index = [index]
         columns = _stack_component_columns(key[1])
         if len(columns) == 1:
+            if isinstance(values, pd.DataFrame):
+                try:
+                    values = values[columns[0][1]]
+                except KeyError:
+                    values = values[columns[0]]
             self.world[columns[0]].loc[index] = values
             return
         df = pd.DataFrame(index=index, columns=columns)

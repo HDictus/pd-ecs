@@ -367,7 +367,9 @@ def test_world_setting():
     assert all(world.loc[[1, 2], comp1.a] == [1, 3])
     
     world.loc[[5, 6], comp2] /= 2
-    assert all(world.loc[[5, 6], comp2] == [0.5, 1.5])
+    assert all(world.loc[[5, 6], comp2]['c'].values == [1.5, 1.5])
+    world.loc[[5, 6], [comp2]] += world[[comp2]].loc[[5, 6]]
+    assert all(world.loc[[5, 6], comp2]['c'].values == [3, 3])
     
     with pyt.raises(ValueError):
         world.loc[3] = 1
