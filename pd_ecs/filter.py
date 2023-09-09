@@ -3,6 +3,7 @@ The Filter object filters entities and components by specified criteria.
 """
 import numpy as np
 import pandas as pd
+from pd_ecs._filter_ops import Exclude
 
 
 class Filter:
@@ -25,19 +26,30 @@ class Filter:
         Entities ids have had <component> added, check if they belong in
         the filter now.
         """
+        if Exclude(component) in self.components:
+            just_added = np.isin(self.ids, ids)
+            self.ids = self.ids[~just_added]
+            return
+        self._add_belonging_ids(ids)
+
+    def _add_belonging_ids(self, ids):
         for comp in self.components:
-            if comp == component:
-                continue
-            ids = np.intersect1d(self.world[comp].index, ids)
+            if isinstance(comp, Exclude):
+                ids = ids[~np.isin(ids, self.world[comp.component].index)]
+            else:
+                ids = np.intersect1d(self.world[comp].index, ids)
             if len(ids) == 0:
                 return
-
         self.ids = np.unique(np.concatenate([self.ids, ids]))
 
-    def _components_removed(self, _, ids):
+    def _components_removed(self, component, ids):
         """
-        entities have had ids removed, they no longer belong in this list
+        entities have had a component removed.
+        check whether or not they belong in the filter
         """
+        if Exclude(component) in self.components:
+            self._add_belonging_ids(ids)
+            return
         toremove = np.isin(self.ids, ids)
         self.ids = self.ids[~toremove]
 

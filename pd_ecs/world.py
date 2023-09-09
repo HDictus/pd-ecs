@@ -12,6 +12,7 @@ import numpy as np
 from .exceptions import ComponentError
 from .component import Component
 from .filter import Filter
+from ._filter_ops import Exclude
 
 
 class World:
@@ -35,6 +36,9 @@ class World:
         filt = Filter(*components, world=self)
         self._filters[components] = filt
         for comp in components:
+            # TODO: seems like poor separation of concerns
+            if isinstance(comp, Exclude):
+                comp = comp.component
             if comp not in self.filters_by_component:
                 self._initialize_state((comp, ))
             self.filters_by_component[comp].append(filt)
