@@ -114,6 +114,13 @@ class World:
                 self._initialize_state((comp, ))
             self.filters_by_component[comp].append(filt)
 
+    @property
+    def index(self):
+        ids = []
+        for _, df in self._dict.items():
+            ids = df.index.union(ids)
+        return ids
+
     def __getitem__(self, key):
         if isinstance(key, list):
             labels = [k[0] if isinstance(k, tuple) else k

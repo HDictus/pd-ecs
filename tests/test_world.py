@@ -401,6 +401,11 @@ def test_world_loc_del():
     assert all(world[comp1].index == [0, 3, 4, 5])
 
 
-# add benchmarking tools
-# remove filters
-# if performance issues: explore multiple implementations with benchmarking
+def test_world_index():
+    comp1 = Component('a', 'b')
+    comp2 = Component('c')
+    world = World()
+    new = world.add_entities({comp1: {
+        'a': [1, 2, 3, 4, 5], 
+        'b': [0, 1, 3, 2, 1]}})
+    assert all(world.index == new)
