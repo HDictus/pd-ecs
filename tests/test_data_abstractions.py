@@ -45,7 +45,7 @@ def test_component_get_based_on_arithmetic():
         print(world[vel].values.dtype)
     
     world.loc[0, direction] = pd.DataFrame({'dir': [0]})
-\
+
     assert np.allclose(
         world[vel].values,
         [[1, 0], [1, 0]]
