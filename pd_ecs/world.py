@@ -14,6 +14,7 @@ import numpy as np
 from .exceptions import ComponentError
 from .component import Component
 from .filter import Filter
+from .data_abstraction import GETTERS, SETTERS
 from ._filter_ops import Exclude
 
 
@@ -40,7 +41,6 @@ class LocIndexer:
             raise ValueError(
                 "Loc indexing without components is not supported."
             )
-
         return self.world[key[1]].loc[key[0]]
 
     def __setitem__(self, key, values):
@@ -54,18 +54,22 @@ class LocIndexer:
             index = [index]
         columns = _stack_component_columns(key[1])
         if len(columns) == 1:
+            column = columns[0]
+            if column[0] in SETTERS:
+                SETTERS[column[0]](self.world, index, values)
+                return
             if isinstance(values, pd.DataFrame):
                 try:
-                    values = values[columns[0][1]]
+                    values = values[column[1]]
                 except KeyError:
-                    values = values[columns[0]]
+                    values = values[column]
             self.world[columns[0]].loc[index] = values
             return
         # pylint: disable=invalid-name
         df = pd.DataFrame(index=index, columns=columns)
         df[:] = values
         for column in columns:
-            self.world[column].loc[index] = df[column]
+            self[index, column] = df[column]
 
     def __delitem__(self, key):
         if not isinstance(key, tuple):
@@ -79,7 +83,8 @@ class LocIndexer:
                       for c in cols]
         self.world.take(index, *components)
 
-
+# TODO: a disproportionate amount of functionality is getting clustered in world
+#    separate it out, e.g. into _impls ?
 class World:
     """
     The World stores and manages the state and events of the simulation.
@@ -150,6 +155,8 @@ class World:
                     "Attempted to get component {key}, which is not"
                     " a component."
                 )
+            if key in GETTERS:
+                return GETTERS[key](self)
             self._initialize_state((key,))
         return self._dict[key]
 

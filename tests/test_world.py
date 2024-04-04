@@ -409,3 +409,14 @@ def test_world_index():
         'a': [1, 2, 3, 4, 5], 
         'b': [0, 1, 3, 2, 1]}})
     assert all(world.index == new)
+
+
+def test_bug_0():
+    vel = Component('vx', 'vy')
+    world = World()
+    world.add_entities({
+        vel: {
+            'vx': [0, 1],
+            'vy': [1, 0]
+        }
+    })
