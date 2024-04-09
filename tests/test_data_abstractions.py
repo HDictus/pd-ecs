@@ -56,3 +56,4 @@ def test_component_get_based_on_arithmetic():
 # TODO: how should we behave if getter is defined after component is first used?
 # TODO: test deletion, wtf do we do?
 # TODO: test that it works with both dataframe and simple numbers, values
+# TODO: what should we do if a setter is duplicated?
