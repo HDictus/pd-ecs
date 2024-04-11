@@ -56,3 +56,5 @@ def test_component_get_based_on_arithmetic():
 # TODO: test deletion, wtf do we do?
 # TODO: test that it works with both dataframe and simple numbers, values
 # TODO: what should we do if a setter is duplicated?
+# TODO: add the ability to create a getter/setter for groups of components
+#   this will be called whenever those components are all gotten/set together.

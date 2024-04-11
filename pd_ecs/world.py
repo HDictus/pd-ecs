@@ -13,7 +13,6 @@ import pandas as pd
 import numpy as np
 from .exceptions import ComponentError
 from .component import Component
-from .filter import Filter
 from .data_abstraction import GETTERS, SETTERS
 from ._filter_ops import Exclude
 
@@ -84,8 +83,6 @@ class World:
         components: component types the world consists of
         """
         self._dict: dict = {}
-        self._filters = {}
-        self.filters_by_component: dict = {}
         self.maxind = 0
 
     @property
@@ -110,13 +107,6 @@ class World:
             return pd.concat(
                 to_concat,
                 join='inner', axis=1, keys=labels)
-        if isinstance(key, tuple):
-            if len(key) == 2 and isinstance(key[1], str):
-                return self[key[0]][key[1]]
-
-            if key not in self._filters:
-                self._add_filter(key)
-            return self._filters[key]
 
         if key not in self._dict:
             if not isinstance(key, Component):
@@ -137,7 +127,6 @@ class World:
     def _initialize_state(self, components: Iterable):
         for component in components:
             self._dict[component] = component.init_series()
-            self.filters_by_component[component] = []
 
     def set_state(self, state: Dict[Component, pd.DataFrame]):
         """
