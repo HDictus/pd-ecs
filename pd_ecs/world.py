@@ -32,30 +32,29 @@ class LocIndexer:
 
     def __setitem__(self, key, values):
         if not isinstance(key, tuple):
+            # TODO: support this
             raise ValueError(
                 "Loc indexing without components is not supported"
             )
-
         index = key[0]
-        if pd.api.types.is_scalar(index):
-            index = [index]
         columns = key[1]
         if not isinstance(columns, list):
             columns = [columns]
-        if len(columns) == 1:
-            column = columns[0]
-            if column in SETTERS:
-                SETTERS[column](self.world, index, values)
-                return
-            if isinstance(values, pd.DataFrame):
-                values = values[column]
-            self.world[columns[0]].loc[index] = values
+        if pd.api.types.is_scalar(index):
+            val = pd.Series(values, index=columns)
+            for col in columns:
+                self._set_column(col, pd.Series(val[col], index=[index]))
             return
-        # pylint: disable=invalid-name
-        df = pd.DataFrame(index=index, columns=columns)
-        df[:] = values
-        for column in columns:
-            self[index, column] = df[column]
+                
+        data = pd.DataFrame(values, columns=columns, index=index)
+        for column, series in data.items():
+            self._set_column(column, series)
+
+    def _set_column(self, column, series):
+        if column in SETTERS:
+            SETTERS[column](self.world, series.index, series.values)
+            return
+        self.world[column].loc[series.index] = series.values
 
     def __delitem__(self, key):
         if not isinstance(key, tuple):

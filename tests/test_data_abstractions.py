@@ -37,18 +37,52 @@ def test_component_get_based_on_arithmetic():
     @sets(direction)
     def vel_from_direction(world, ids, dir):
         magnitude = np.linalg.norm(world.loc[ids, vel].values, axis=-1)
-        ux, uy = np.cos(dir.dir), np.sin(dir.dir)
+        ux, uy = np.cos(dir), np.sin(dir)
         # TODO: here I've identified another bug - it doesn't play nice when setting with arrays
         #  create a seprate test, then simplify here
+        print(magnitude.shape)
         world.loc[ids, vx] = ux * magnitude
         world.loc[ids, vy] = uy * magnitude
         print(world[vel].values.dtype)
     
-    world.loc[0, direction] = pd.DataFrame({'dir': [0]})
+    world.loc[0, direction] = 0
 
     assert np.allclose(
         world[vel].values,
         [[1, 0], [1, 0]]
+    )
+
+def test_set_mutliple():
+    a = Component('a')
+    b = Component('b')
+    c = Component('c')
+    world = World()
+
+    @gets(c)
+    def c_from_a(world):
+        return world[a] * 2
+    
+    # TODO: determine what the behavior should be if
+    #  c and a are set at the same time.
+    #  just let it depend on the order?
+    @sets(c)
+    def a_from_c(world, idx, val):
+        world.loc[idx, a] = val / 2
+    
+    world.add_entities({a: [0, 1, 2], b: [1, 2, 3]})
+
+    world.loc[[1, 2], [b, c]] = pd.DataFrame(
+        {b: [0, 0], c: [4, 8]}, 
+        index=[1,2]
+    )
+    
+    pd.testing.assert_frame_equal(
+        world[[a, b, c]],
+        pd.DataFrame({
+            a: [0, 2, 4],
+            b: [1, 0, 0],
+            c: [0, 4, 8]
+        })
     )
 
 # TODO: test using loc indexes and stuff to efficiently set/get only subset
