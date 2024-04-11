@@ -18,18 +18,6 @@ from .data_abstraction import GETTERS, SETTERS
 from ._filter_ops import Exclude
 
 
-def _stack_component_columns(cols):
-    if not isinstance(cols, list):
-        cols = [cols]
-    columns = []
-    for col in cols:
-        if isinstance(col, Component):
-            columns += [(col, field) for field in col.fields]
-        else:
-            columns.append(col)
-    return columns
-
-
 class LocIndexer:
     """Entity indexer, works like pandas .loc attribute."""
 
@@ -52,17 +40,16 @@ class LocIndexer:
         index = key[0]
         if pd.api.types.is_scalar(index):
             index = [index]
-        columns = _stack_component_columns(key[1])
+        columns = key[1]
+        if not isinstance(columns, list):
+            columns = [columns]
         if len(columns) == 1:
             column = columns[0]
-            if column[0] in SETTERS:
-                SETTERS[column[0]](self.world, index, values)
+            if column in SETTERS:
+                SETTERS[column](self.world, index, values)
                 return
             if isinstance(values, pd.DataFrame):
-                try:
-                    values = values[column[1]]
-                except KeyError:
-                    values = values[column]
+                values = values[column]
             self.world[columns[0]].loc[index] = values
             return
         # pylint: disable=invalid-name
@@ -100,24 +87,6 @@ class World:
         self._filters = {}
         self.filters_by_component: dict = {}
         self.maxind = 0
-
-    def _add_filter(self, components):
-        """Add a new filter to the world."""
-        filt = Filter(*components, world=self)
-        self._filters[components] = filt
-        for comp in components:
-            warnings.warn(
-                "Component filters will be disabled in a future "
-                "version. "
-                "Get filtered dataframes directly by indexing the"
-                " world with a list "
-                "of components (world[[component1, component2]]).",
-                DeprecationWarning)
-            if isinstance(comp, Exclude):
-                comp = comp.component
-            if comp not in self.filters_by_component:
-                self._initialize_state((comp, ))
-            self.filters_by_component[comp].append(filt)
 
     @property
     def index(self):
@@ -165,21 +134,9 @@ class World:
         """Loc indexer, like pandas.DataFrame.loc."""
         return LocIndexer(self)
 
-    def _notify_filters_added(self, component, ids):
-        """Inform the relevant filters ids have component now."""
-        # pylint: disable=protected-access
-        for filt in self.filters_by_component[component]:
-            filt._components_added(component, ids)
-
-    def _notify_filters_removed(self, component, ids):
-        """Inform the relevant filters ids no longer have component.e"""
-        # pylint: disable=protected-access
-        for filt in self.filters_by_component[component]:
-            filt._components_removed(component, ids)
-
     def _initialize_state(self, components: Iterable):
         for component in components:
-            self._dict[component] = component.init_dataframe()
+            self._dict[component] = component.init_series()
             self.filters_by_component[component] = []
 
     def set_state(self, state: Dict[Component, pd.DataFrame]):
@@ -196,7 +153,7 @@ class World:
         for component, data in state.items():
             self._add_component(component, data, data.index)
 
-    def add_entities(self, component_values: Dict[Component, pd.DataFrame]):
+    def add_entities(self, component_values):
         """
         Add entities to the world.
         Arguments:
@@ -206,46 +163,45 @@ class World:
                 the index is ignored
                 a dataframe or list of dicts also works
         """
-        num_entities = _number_of_entities(component_values)
+        component_values = pd.DataFrame(component_values)
+        num_entities = len(component_values)
         indices = range(self.maxind, self.maxind + num_entities)
-        frames = _component_dataframes(component_values, indices)
+        frames = _component_series(component_values, indices)
         self._add_components(frames, indices)
         self.maxind += num_entities
         return list(indices)
 
-    def _add_components(self, frames, indices):
-        for comp, frame in frames.items():
-            self._add_component(comp, frame, indices)
-            self._notify_filters_added(comp, indices)
+    def _add_components(self, frame, indices):
+        for comp, series in frame.items():
+            self._add_component(comp, series, indices)
 
-    def _add_component(self, comp, frame, indices, keep='last'):
+    def _add_component(self, comp, series, indices):
+        if not isinstance(comp, Component):
+            raise ComponentError(
+                "component column names must be Component objects. "
+                f"Recieved {comp} instead"
+            )
         if comp not in self._dict:
             self._initialize_state((comp, ))
+        new_comp = pd.concat([
+            self._dict[comp],
+            pd.Series(series, index=indices)
+        ])
+        new_comp.name = self._dict[comp].name
 
-        for key in frame:
-            if key not in comp.fields:
-                raise ComponentError(
-                    f"field {key} does not belong to {comp}")
-
-        new_df = pd.concat(
-            [self[comp],
-             frame.set_index(np.array(indices))]
-        )
-        new_df['ind'] = new_df.index
-        # prevent adding duplicate components
-        self._dict[comp] =\
-            new_df.drop_duplicates(keep=keep, subset='ind')[list(comp.fields)]
+        self._dict[comp] = new_comp[
+            ~new_comp.index.duplicated(keep='last')
+        ]
 
     def give(self, ids, components):
         """Add given components to entities corresponding to ids."""
-        frames = _component_dataframes(components, indices=ids)
+        frames = _component_series(components, indices=ids)
         self._add_components(frames, ids)
 
     def take(self, ids, *components):
         """Remove given components from entities corresponding to ids."""
         for component in components:
             self._dict[component].drop(ids, inplace=True)
-            self._notify_filters_removed(component, ids)
 
     def remove_entities(self, ids):
         """
@@ -258,7 +214,6 @@ class World:
         for comp, data in self._dict.items():
             ids_in = np.intersect1d(ids, data.index)
             data.drop(ids_in, inplace=True)
-            self._notify_filters_removed(comp, ids)
 
     def update(self, components: Dict[Component, pd.DataFrame]):
         """
@@ -273,33 +228,14 @@ class World:
             self[comp].loc[frame.index] = frame
 
 
-def _number_of_entities(components):
-    """gets the number of entities suggested by component data"""
-    nentities = None
-    for _, data in components.items():
-        for field, values in data.items():
-            if isinstance(values, Iterable):
-                if nentities is None:
-                    nentities = len(values)
-                else:
-                    if len(values) != nentities:
-                        raise ComponentError(
-                            f"could not interperet number of entities for "
-                            f"components. length of {field}, {values} is not "
-                            f"equal to {nentities}")
-    if nentities == 0:
-        return 0
-    return nentities or 1
+def _component_series(components, indices):
+    def _get_values(ser):
+        try:
+            return ser.values
+        except AttributeError:
+            return ser
 
-
-def _component_dataframes(components, indices):
-    frames = {}
-    for component, value in components.items():
-        if isinstance(value, pd.DataFrame):
-            value = value.copy()
-            value.index = indices
-            frames[component] = value
-            continue
-        frames[component] = pd.DataFrame(value, index=indices)
-
-    return frames
+    return {
+        comp: pd.Series(_get_values(ser), index=indices)
+        for comp, ser in components.items()
+    }
