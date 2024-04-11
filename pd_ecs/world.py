@@ -36,25 +36,28 @@ class LocIndexer:
             raise ValueError(
                 "Loc indexing without components is not supported"
             )
-        index = key[0]
-        columns = key[1]
+        index, columns = key
         if not isinstance(columns, list):
             columns = [columns]
+
         if pd.api.types.is_scalar(index):
-            val = pd.Series(values, index=columns)
-            for col in columns:
-                self._set_column(col, pd.Series(val[col], index=[index]))
+            self._set_single_row(values, index, columns)
             return
-                
+
         data = pd.DataFrame(values, columns=columns, index=index)
         for column, series in data.items():
-            self._set_column(column, series)
+            self._set_column(column, series.index, series.values)
 
-    def _set_column(self, column, series):
+    def _set_single_row(self, values, index, columns):
+        val = pd.Series(values, index=columns)
+        for col in columns:
+            self._set_column(col, index, val[col])
+
+    def _set_column(self, column, index, values):
         if column in SETTERS:
-            SETTERS[column](self.world, series.index, series.values)
+            SETTERS[column](self.world, index, values)
             return
-        self.world[column].loc[series.index] = series.values
+        self.world[column].loc[index] = values
 
     def __delitem__(self, key):
         if not isinstance(key, tuple):
@@ -93,30 +96,33 @@ class World:
 
     def __getitem__(self, key):
         if isinstance(key, list):
-            labels = [k[0] if isinstance(k, tuple) else k
-                      for k in key]
-            exclude = [k for k in key if isinstance(k, Exclude)]
-            to_concat = [self[k] if isinstance(k, Component)
-                         else pd.DataFrame(self[k])
-                         for k in key if k not in exclude]
-            for exclude_component in exclude:
-                excluded = to_concat[0].index.intersection(
-                    self[exclude_component.component].index)
-                to_concat[0] = to_concat[0].drop(excluded, axis=0)
-            return pd.concat(
-                to_concat,
-                join='inner', axis=1, keys=labels)
+            return self._get_multiple(key)
 
         if key not in self._dict:
+            if key in GETTERS:
+                return GETTERS[key](self)
             if not isinstance(key, Component):
                 raise KeyError(
                     "Attempted to get component {key}, which is not"
                     " a component."
                 )
-            if key in GETTERS:
-                return GETTERS[key](self)
             self._initialize_state((key,))
         return self._dict[key]
+
+    def _get_multiple(self, key):
+        labels = [k[0] if isinstance(k, tuple) else k
+                 for k in key]
+        exclude = [k for k in key if isinstance(k, Exclude)]
+        to_concat = [self[k] if isinstance(k, Component)
+                     else pd.DataFrame(self[k])
+                     for k in key if k not in exclude]
+        for exclude_component in exclude:
+            excluded = to_concat[0].index.intersection(
+                self[exclude_component.component].index)
+            to_concat[0] = to_concat[0].drop(excluded, axis=0)
+        return pd.concat(
+            to_concat,
+            join='inner', axis=1, keys=labels)
 
     @lazy
     def loc(self):
