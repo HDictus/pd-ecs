@@ -103,7 +103,7 @@ class World:
                 return GETTERS[key](self)
             if not isinstance(key, Component):
                 raise KeyError(
-                    "Attempted to get component {key}, which is not"
+                    f"Attempted to get component {key}, which is not"
                     " a component."
                 )
             self._initialize_state((key,))
