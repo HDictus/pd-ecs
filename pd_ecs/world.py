@@ -114,8 +114,7 @@ class World:
 
     def _get_multiple(self, key):
         exclude = [k for k in key if isinstance(k, Exclude)]
-        to_concat = [self[k] if isinstance(k, Component)
-                     else pd.DataFrame(self[k])
+        to_concat = [self[k]
                      for k in key if k not in exclude]
 
         for exclude_component in exclude:
@@ -123,9 +122,12 @@ class World:
                 self[exclude_component.component].index)
             to_concat[0] = to_concat[0].drop(excluded, axis=0)
 
-        return pd.concat(
+        out = pd.concat(
             to_concat,
             join='inner', axis=1)
+        _ensure_columns_index_level_consistent(out)
+        return out
+        import pdb; pdb.set_trace()
 
     @lazy
     def loc(self):
@@ -252,3 +254,20 @@ def _validate_component(comp):
             "component column names must be Component objects. "
             f"Recieved {comp} instead"
         )
+        
+def _ensure_columns_index_level_consistent(df):
+    column_index_depth = 1
+    for k in df.columns:
+        if isinstance(k, tuple):
+            column_index_depth = max(column_index_depth, len(k))
+    if column_index_depth == 1:
+        return df
+    if column_index_depth > 1:
+        cols = []
+        for col in df.columns:
+            if not isinstance(col, tuple):
+                col = (col, )
+            col += ('', ) * (column_index_depth - len(col))
+            cols.append(col)
+        df.columns = pd.MultiIndex.from_tuples(cols)
+    return df

@@ -50,6 +50,7 @@ def test_component_get_based_on_arithmetic():
         [[1, 0], [1, 0]]
     )
 
+
 def test_set_mutliple():
     a = Component('a')
     b = Component('b')

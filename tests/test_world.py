@@ -147,7 +147,25 @@ def test_world_add_entities_with_compound_components():
             (compound, component2): [1, 1, 2, 2]
         })
     )
- 
+    
+def test_world_index_compound_and_noncompound():
+    x = Component('x')
+    y = Component('y')
+    vel = Component('vel', x=x, y=y)
+    single = Component('waffles')
+    world = World()
+    world.add_entities({
+        vel.x: [100], vel.y: [100], single: 0
+    })
+    pd.testing.assert_frame_equal(
+         world[[vel, single]],
+         pd.DataFrame({
+             vel.x: 100,
+             vel.y: [100],
+             (single, ''): 0
+         })
+    )
+
 
 def test_world_add_single_entity():
     component1 = Component('some')
