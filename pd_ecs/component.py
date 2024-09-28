@@ -16,13 +16,19 @@ class Component:
     name: str
     dtype: Union[str, np.dtype, pd.api.extensions.ExtensionDtype]
 
-    def __init__(self, name, dtype=object):
+    def __init__(self, name, dtype=object, **subcomponents):
         """
         Arguments:
             fields: names of component variables (str)
         """
         self.name = name
         self.dtype = dtype
+        # TODO: find an elegant way to have this be reflected in
+        #   static code analysis
+        # each component instance should be a type object?
+        # a named tuple or dataclass?
+        for name, component in subcomponents.items():
+            setattr(self, name, (self, component))
 
     def __repr__(self):
         return f'{self.name} Component'
