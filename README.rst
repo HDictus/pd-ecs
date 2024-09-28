@@ -33,5 +33,10 @@ ooh! we can do one better: we use add_entities(componentname=dict(varname=anarra
 how do we add or remove components?
 
 
+To do 
+=====
 
-
+ - compound components 
+ - address unclear aspects of data abstractions
+ - separate specific implementation from interface
+ - at least one other implementation

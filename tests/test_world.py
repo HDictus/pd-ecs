@@ -32,7 +32,7 @@ def test_world_index_filters():
   
 def test_informative_error_accidental_int_index():
     world = World()
-    with pyt.raises(KeyError):
+    with pyt.raises(ComponentError):
         world.loc[1, 2, 'comp']
 
 
@@ -130,6 +130,24 @@ def test_world_add_entities_array():
         world[component1],
         pd.Series([1, 2, 3, 4], name=component1))
 
+
+def test_world_add_entities_with_compound_components():
+    component1 = Component('some')
+    component2 = Component('field')
+    compound = Component("fields", some=component1, field=component2)
+    world = World()
+
+    world.add_entities({compound.some: [1, 2, 3, 4],
+                        compound.field: [1, 1, 2, 2]})
+
+    pd.testing.assert_frame_equal(
+        world[compound],
+        pd.DataFrame({
+            (compound, component1): [1, 2, 3, 4],
+            (compound, component2): [1, 1, 2, 2]
+        })
+    )
+ 
 
 def test_world_add_single_entity():
     component1 = Component('some')

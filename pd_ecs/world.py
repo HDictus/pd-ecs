@@ -97,32 +97,35 @@ class World:
     def __getitem__(self, key):
         if isinstance(key, list):
             return self._get_multiple(key)
+        _validate_component(key)
+        # TODO: not really happy with this
+        if isinstance(key, Component) and key.is_compound:
+            return self._get_multiple(list(key.subcomponents.values()))
+        series = self._get(key)
+        series.name = key
+        return series
 
+    def _get(self, key):
         if key not in self._dict:
             if key in GETTERS:
                 return GETTERS[key](self)
-            if not isinstance(key, Component):
-                raise KeyError(
-                    f"Attempted to get component {key}, which is not"
-                    " a component."
-                )
             self._initialize_state((key,))
         return self._dict[key]
 
     def _get_multiple(self, key):
-        labels = [k[0] if isinstance(k, tuple) else k
-                 for k in key]
         exclude = [k for k in key if isinstance(k, Exclude)]
         to_concat = [self[k] if isinstance(k, Component)
                      else pd.DataFrame(self[k])
                      for k in key if k not in exclude]
+
         for exclude_component in exclude:
             excluded = to_concat[0].index.intersection(
                 self[exclude_component.component].index)
             to_concat[0] = to_concat[0].drop(excluded, axis=0)
+
         return pd.concat(
             to_concat,
-            join='inner', axis=1, keys=labels)
+            join='inner', axis=1)
 
     @lazy
     def loc(self):
@@ -131,6 +134,11 @@ class World:
 
     def _initialize_state(self, components: Iterable):
         for component in components:
+            if isinstance(component, tuple):
+                series = component[-1].init_series()
+                series.name = component
+                self._dict[component] = series
+                continue
             self._dict[component] = component.init_series()
 
     def set_state(self, state: Dict[Component, pd.DataFrame]):
@@ -170,11 +178,7 @@ class World:
             self._add_component(comp, series, indices)
 
     def _add_component(self, comp, series, indices):
-        if not isinstance(comp, Component):
-            raise ComponentError(
-                "component column names must be Component objects. "
-                f"Recieved {comp} instead"
-            )
+        _validate_component(comp)
         if comp not in self._dict:
             self._initialize_state((comp, ))
         new_comp = pd.concat([
@@ -233,3 +237,18 @@ def _component_series(components, indices):
         comp: pd.Series(_get_values(ser), index=indices)
         for comp, ser in components.items()
     }
+
+def _is_component(comp):
+    if isinstance(comp, Component):
+        return True
+    return isinstance(comp, tuple) and all(
+        isinstance(c, Component) for c in comp
+    )
+
+
+def _validate_component(comp):
+    if not _is_component(comp):
+        raise ComponentError(
+            "component column names must be Component objects. "
+            f"Recieved {comp} instead"
+        )

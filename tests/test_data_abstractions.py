@@ -26,7 +26,7 @@ def test_component_get_based_on_arithmetic():
     })
 
     exp = direction_from_vel(world)
-
+    exp.name = direction
     pd.testing.assert_series_equal(
         world[direction],
         exp
@@ -40,11 +40,9 @@ def test_component_get_based_on_arithmetic():
         ux, uy = np.cos(dir), np.sin(dir)
         # TODO: here I've identified another bug - it doesn't play nice when setting with arrays
         #  create a seprate test, then simplify here
-        print(magnitude.shape)
         world.loc[ids, vx] = ux * magnitude
         world.loc[ids, vy] = uy * magnitude
-        print(world[vel].values.dtype)
-    
+
     world.loc[0, direction] = 0
 
     assert np.allclose(
@@ -93,3 +91,4 @@ def test_set_mutliple():
 # TODO: add the ability to create a getter/setter for groups of components
 #   this will be called whenever those components are all gotten/set together.
 # TODO: test it works with give
+# TODO: test working with compound components

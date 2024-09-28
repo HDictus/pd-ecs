@@ -15,6 +15,7 @@ class Component:
 
     name: str
     dtype: Union[str, np.dtype, pd.api.extensions.ExtensionDtype]
+    is_compound = False
 
     def __init__(self, name, dtype=object, **subcomponents):
         """
@@ -27,8 +28,12 @@ class Component:
         #   static code analysis
         # each component instance should be a type object?
         # a named tuple or dataclass?
+        self.subcomponents = {}
         for name, component in subcomponents.items():
-            setattr(self, name, (self, component))
+            combination = (self, component)
+            setattr(self, name, combination)
+            self.subcomponents[name] = combination
+            self.is_compound = True
 
     def __repr__(self):
         return f'{self.name} Component'
