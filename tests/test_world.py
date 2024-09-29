@@ -319,7 +319,8 @@ def test_world_setting():
     with pyt.raises(ValueError):
         world.loc[3] = 1
 
-    
+# TODO: find elegant way to test both loc-setting and update
+# TODO: test also with setting individual subcomponents 
 def test_world_set_compound():
     a = Component('a')
     b = Component('b')
