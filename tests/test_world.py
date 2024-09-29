@@ -143,8 +143,8 @@ def test_world_add_entities_with_compound_components():
     pd.testing.assert_frame_equal(
         world[compound],
         pd.DataFrame({
-            (compound, component1): [1, 2, 3, 4],
-            (compound, component2): [1, 1, 2, 2]
+            component1: [1, 2, 3, 4],
+            component2: [1, 1, 2, 2]
         })
     )
     
@@ -166,6 +166,7 @@ def test_world_index_compound_and_noncompound():
          })
     )
 
+    
 
 def test_world_add_single_entity():
     component1 = Component('some')
@@ -238,6 +239,17 @@ def test_world_take():
     assert list(world[component1].index) == [0, 2]
 
 
+def test_world_take_compound():
+    one = Component('one')
+    other = Component('other')
+    both = Component('both', one=one, other=other)
+    world = World()
+    world.add_entities(
+        {both.one: [1, 2], both.other: [2, 3]},
+    )
+    world.take([0], both)
+    assert list(world[both].index == [1])
+
 def test_world_remove_entities():
     component1 = Component('some')
     component2 = Component('field')
@@ -307,6 +319,23 @@ def test_world_setting():
     with pyt.raises(ValueError):
         world.loc[3] = 1
 
+    
+def test_world_set_compound():
+    a = Component('a')
+    b = Component('b')
+    c = Component('c', a=a, b=b)
+    world = World()
+    world.add_entities({c.a: [0, 0], c.b: [1, 1]})
+    world.update({
+        c: pd.DataFrame({
+            a: pd.Series(1, index=[1]),
+            b: pd.Series(0, index=[1])})
+    })
+    pd.testing.assert_frame_equal(
+        world[c],
+        pd.DataFrame({a: [0, 1], b: [1, 0]})
+    )
+    
 
 def test_world_loc_del():
     comp1 = Component('a')

@@ -95,6 +95,12 @@ class World:
         return ids
 
     def __getitem__(self, key):
+        item = self._get_item(key)
+        if isinstance(key, Component) and key.is_compound:
+            item = item[key]
+        return item
+        
+    def _get_item(self, key):
         if isinstance(key, list):
             return self._get_multiple(key)
         _validate_component(key)
@@ -114,7 +120,7 @@ class World:
 
     def _get_multiple(self, key):
         exclude = [k for k in key if isinstance(k, Exclude)]
-        to_concat = [self[k]
+        to_concat = [self._get_item(k)
                      for k in key if k not in exclude]
 
         for exclude_component in exclude:
@@ -127,7 +133,6 @@ class World:
             join='inner', axis=1)
         _ensure_columns_index_level_consistent(out)
         return out
-        import pdb; pdb.set_trace()
 
     @lazy
     def loc(self):
@@ -201,7 +206,11 @@ class World:
     def take(self, ids, *components):
         """Remove given components from entities corresponding to ids."""
         for component in components:
-            self._dict[component].drop(ids, inplace=True)
+            if component.is_compound:
+                for k, comp in component.subcomponents.items():
+                    self._dict[comp].drop(ids, inplace=True)
+            else:
+                self._dict[component].drop(ids, inplace=True)
 
     def remove_entities(self, ids):
         """
@@ -225,7 +234,12 @@ class World:
                 for the entities corresponding to their index.
         """
         for comp, frame in components.items():
-            self[comp].loc[frame.index] = frame
+            if isinstance(comp, Component) and comp.is_compound:
+                self.update({
+                    (comp, col): value 
+                    for col, value in frame.items()})
+            else:
+                self[comp].loc[frame.index] = frame
 
 
 def _component_series(components, indices):
