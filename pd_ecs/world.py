@@ -6,7 +6,6 @@ Systems are added to the world.
 World.events.<event_name> calls that event for all systems in the world
 """
 
-import warnings
 from collections.abc import Iterable
 from typing import Dict
 
@@ -24,17 +23,22 @@ class LocIndexer:
     """Entity indexer, works like pandas .loc attribute."""
 
     def __init__(self, world):
+        """Initialize the loc indexer for world."""
         self.world = world
 
     def __getitem__(self, key):
+        """Get components of specific entities."""
         if not isinstance(key, tuple):
-            raise ValueError("Loc indexing without components is not supported.")
+            raise ValueError(
+                "Loc indexing without components is not supported.")
         return self.world[key[1]].loc[key[0]]
 
     def __setitem__(self, key, values):
+        """Update/add components on entities."""
         if not isinstance(key, tuple):
             # TODO: support this
-            raise ValueError("Loc indexing without components is not supported")
+            raise ValueError(
+                "Loc indexing without components is not supported")
         index, columns = key
         if not isinstance(columns, list):
             columns = [columns]
@@ -59,6 +63,7 @@ class LocIndexer:
         self.world[column].loc[index] = values
 
     def __delitem__(self, key):
+        """Remove components or delete entities."""
         if not isinstance(key, tuple):
             self.world.remove_entities(key)
             return
@@ -66,7 +71,8 @@ class LocIndexer:
         cols = key[1]
         if not isinstance(cols, list):
             cols = [cols]
-        components = [c if isinstance(c, Component) else c[0] for c in cols]
+        components = [c if isinstance(c, Component)
+                      else c[0] for c in cols]
         self.world.take(index, *components)
 
 
@@ -80,20 +86,20 @@ class World:
     """
 
     def __init__(self):
-        """
-        components: component types the world consists of
-        """
+        """Create a world."""
         self._dict: dict = {}
         self.maxind = 0
 
     @property
     def index(self):
+        """All entity ids."""
         ids = []
         for _, df in self._dict.items():
             ids = df.index.union(ids)
         return ids
 
     def __getitem__(self, key):
+        """Get data for components."""
         item = self._get_item(key)
         if isinstance(key, Component) and key.is_compound:
             item = item[key]
@@ -147,7 +153,7 @@ class World:
 
     def set_state(self, state: Dict[Component, pd.DataFrame]):
         """
-        Set the state of the world (entities, components) to the provided value
+        Set the state of the world (entities, components) to the provided value.
 
         Arguments:
             state: of the form:
@@ -162,6 +168,7 @@ class World:
     def add_entities(self, component_values):
         """
         Add entities to the world.
+
         Arguments:
             component_values is a dict of dicts  of the form
                 {<component>: {<field>: values}}
@@ -185,7 +192,9 @@ class World:
         _validate_component(comp)
         if comp not in self._dict:
             self._initialize_state((comp,))
-        new_comp = pd.concat([self._dict[comp], pd.Series(series, index=indices)])
+        new_comp = pd.concat([
+            self._dict[comp],
+            pd.Series(series, index=indices)])
         new_comp.name = self._dict[comp].name
 
         self._dict[comp] = new_comp[~new_comp.index.duplicated(keep="last")]
@@ -199,35 +208,39 @@ class World:
         """Remove given components from entities corresponding to ids."""
         for component in components:
             if component.is_compound:
-                for k, comp in component.subcomponents.items():
+                for _, comp in component.subcomponents.items():
                     self._dict[comp].drop(ids, inplace=True)
             else:
                 self._dict[component].drop(ids, inplace=True)
 
     def remove_entities(self, ids):
         """
-        Removes given entities from the world.
+        Remove given entities from the world.
 
         Arguments:
             ids: the entity ids, corresponding to the indices of rows
                 corresponding to these entities in the component dataframes.
         """
-        for comp, data in self._dict.items():
+        for _, data in self._dict.items():
             ids_in = np.intersect1d(ids, data.index)
             data.drop(ids_in, inplace=True)
 
     def update(self, components: Dict[Component, pd.DataFrame]):
         """
-        Update the world state with given component dataframes
+        Update the world state with given component dataframes.
 
         Arguments:
-            components is a dict of component: dataframe. the values in the
-                dataframes represent the new values for those components in
-                for the entities corresponding to their index.
+            components is a dict of component: dataframe. the values
+                in the dataframes represent the new values for those
+                components in for the entities corresponding to their
+                index.
         """
         for comp, frame in components.items():
             if isinstance(comp, Component) and comp.is_compound:
-                self.update({(comp, col): value for col, value in frame.items()})
+                self.update({
+                    (comp, col): value
+                    for col, value in frame.items()}
+                )
             else:
                 self[comp].loc[frame.index] = frame
 
@@ -248,7 +261,8 @@ def _component_series(components, indices):
 def _is_component(comp):
     if isinstance(comp, Component):
         return True
-    return isinstance(comp, tuple) and all(isinstance(c, Component) for c in comp)
+    return isinstance(comp, tuple) and all(
+        isinstance(c, Component) for c in comp)
 
 
 def _validate_component(comp):

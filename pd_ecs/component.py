@@ -11,9 +11,10 @@ unnamed_components: list = []
 
 
 class Component:
-    """
-    A component represents a variable to a given entity.
-    In a world dataframe each component is a column and each row an entity.
+    """Components of entities in the world.
+
+    A component represents a variable corresponding to a given entity.
+    Think of each component as a column, and each entity as a row.
     """
 
     name: str
@@ -21,7 +22,8 @@ class Component:
     is_compound = False
 
     def __init__(self, name, dtype=object, **subcomponents):
-        """
+        """Initialize a component type.
+
         Arguments:
             fields: names of component variables (str)
         """
@@ -32,10 +34,10 @@ class Component:
         # each component instance should be a type object?
         # a named tuple or dataclass?
         self.subcomponents = {}
-        for name, component in subcomponents.items():
+        for component_name, component in subcomponents.items():
             combination = (self, component)
-            setattr(self, name, combination)
-            self.subcomponents[name] = combination
+            setattr(self, component_name, combination)
+            self.subcomponents[component_name] = combination
             self.is_compound = True
 
     # pylint: disable=no-member,useless-parent-delegation
@@ -44,10 +46,20 @@ class Component:
         return super().__getattr__(attr)
 
     def __repr__(self):
+        """Convert to string for representation."""
         return f"{self.name} Component"
 
     def __invert__(self):
+        """Specify entities without this component.
+        
+        When indexing the world, you can do:
+            ```
+            entities_wo_2 = world[[component1, ~component2]]
+            ```
+        To get component1 of entities that do not also have component 2.
+        """
         return Exclude(self)
 
     def init_series(self):
+        """Initialize a series for this component."""
         return pd.Series([], dtype=self.dtype, name=self)
