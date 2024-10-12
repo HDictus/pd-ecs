@@ -1,7 +1,10 @@
 """Declaring components."""
-import pandas as pd
-import numpy as np
+
 from typing import Union
+
+import numpy as np
+import pandas as pd
+
 from pd_ecs._filter_ops import Exclude
 
 unnamed_components: list = []
@@ -41,7 +44,7 @@ class Component:
         return super().__getattr__(attr)
 
     def __repr__(self):
-        return f'{self.name} Component'
+        return f"{self.name} Component"
 
     def __invert__(self):
         return Exclude(self)

@@ -5,16 +5,19 @@ It is defined as consisting of a certain set of component types.
 Systems are added to the world.
 World.events.<event_name> calls that event for all systems in the world
 """
-from collections.abc import Iterable
+
 import warnings
+from collections.abc import Iterable
 from typing import Dict
-from lazy import lazy
-import pandas as pd
+
 import numpy as np
-from .exceptions import ComponentError
+import pandas as pd
+from lazy import lazy
+
+from ._filter_ops import Exclude
 from .component import Component
 from .data_abstraction import GETTERS, SETTERS
-from ._filter_ops import Exclude
+from .exceptions import ComponentError
 
 
 class LocIndexer:
@@ -25,17 +28,13 @@ class LocIndexer:
 
     def __getitem__(self, key):
         if not isinstance(key, tuple):
-            raise ValueError(
-                "Loc indexing without components is not supported."
-            )
+            raise ValueError("Loc indexing without components is not supported.")
         return self.world[key[1]].loc[key[0]]
 
     def __setitem__(self, key, values):
         if not isinstance(key, tuple):
             # TODO: support this
-            raise ValueError(
-                "Loc indexing without components is not supported"
-            )
+            raise ValueError("Loc indexing without components is not supported")
         index, columns = key
         if not isinstance(columns, list):
             columns = [columns]
@@ -67,9 +66,9 @@ class LocIndexer:
         cols = key[1]
         if not isinstance(cols, list):
             cols = [cols]
-        components = [c if isinstance(c, Component) else c[0]
-                      for c in cols]
+        components = [c if isinstance(c, Component) else c[0] for c in cols]
         self.world.take(index, *components)
+
 
 # TODO: a disproportionate amount of functionality is getting clustered in world
 #    separate it out, e.g. into _impls ?
@@ -99,7 +98,7 @@ class World:
         if isinstance(key, Component) and key.is_compound:
             item = item[key]
         return item
-        
+
     def _get_item(self, key):
         if isinstance(key, list):
             return self._get_multiple(key)
@@ -120,17 +119,15 @@ class World:
 
     def _get_multiple(self, key):
         exclude = [k for k in key if isinstance(k, Exclude)]
-        to_concat = [self._get_item(k)
-                     for k in key if k not in exclude]
+        to_concat = [self._get_item(k) for k in key if k not in exclude]
 
         for exclude_component in exclude:
             excluded = to_concat[0].index.intersection(
-                self[exclude_component.component].index)
+                self[exclude_component.component].index
+            )
             to_concat[0] = to_concat[0].drop(excluded, axis=0)
 
-        out = pd.concat(
-            to_concat,
-            join='inner', axis=1)
+        out = pd.concat(to_concat, join="inner", axis=1)
         _ensure_columns_index_level_consistent(out)
         return out
 
@@ -187,16 +184,11 @@ class World:
     def _add_component(self, comp, series, indices):
         _validate_component(comp)
         if comp not in self._dict:
-            self._initialize_state((comp, ))
-        new_comp = pd.concat([
-            self._dict[comp],
-            pd.Series(series, index=indices)
-        ])
+            self._initialize_state((comp,))
+        new_comp = pd.concat([self._dict[comp], pd.Series(series, index=indices)])
         new_comp.name = self._dict[comp].name
 
-        self._dict[comp] = new_comp[
-            ~new_comp.index.duplicated(keep='last')
-        ]
+        self._dict[comp] = new_comp[~new_comp.index.duplicated(keep="last")]
 
     def give(self, ids, components):
         """Add given components to entities corresponding to ids."""
@@ -235,9 +227,7 @@ class World:
         """
         for comp, frame in components.items():
             if isinstance(comp, Component) and comp.is_compound:
-                self.update({
-                    (comp, col): value 
-                    for col, value in frame.items()})
+                self.update({(comp, col): value for col, value in frame.items()})
             else:
                 self[comp].loc[frame.index] = frame
 
@@ -254,12 +244,11 @@ def _component_series(components, indices):
         for comp, ser in components.items()
     }
 
+
 def _is_component(comp):
     if isinstance(comp, Component):
         return True
-    return isinstance(comp, tuple) and all(
-        isinstance(c, Component) for c in comp
-    )
+    return isinstance(comp, tuple) and all(isinstance(c, Component) for c in comp)
 
 
 def _validate_component(comp):
@@ -268,7 +257,8 @@ def _validate_component(comp):
             "component column names must be Component objects. "
             f"Recieved {comp} instead"
         )
-        
+
+
 def _ensure_columns_index_level_consistent(df):
     column_index_depth = 1
     for k in df.columns:
@@ -280,8 +270,8 @@ def _ensure_columns_index_level_consistent(df):
         cols = []
         for col in df.columns:
             if not isinstance(col, tuple):
-                col = (col, )
-            col += ('', ) * (column_index_depth - len(col))
+                col = (col,)
+            col += ("",) * (column_index_depth - len(col))
             cols.append(col)
         df.columns = pd.MultiIndex.from_tuples(cols)
     return df
