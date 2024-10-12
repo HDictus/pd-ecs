@@ -35,6 +35,11 @@ class Component:
             self.subcomponents[name] = combination
             self.is_compound = True
 
+    # pylint: disable=no-member,useless-parent-delegation
+    def __getattr__(self, attr):
+        """To satisfy linters."""
+        return super().__getattr__(attr)
+
     def __repr__(self):
         return f'{self.name} Component'
 
