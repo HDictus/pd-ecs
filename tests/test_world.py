@@ -148,6 +148,12 @@ def test_world_add_entities_with_compound_components():
         })
     )
     
+    world.loc[[0], compound.field] = 5
+    assert world.loc[0, compound.field] == 5
+    world.loc[1, compound] = [0, 0]
+    assert all(world.loc[1, compound] == [0, 0])
+
+
 def test_world_index_compound_and_noncompound():
     x = Component('x')
     y = Component('y')
@@ -226,6 +232,18 @@ def test_world_give():
     assert list(world[component1].index) == [1, 4, 2, 5]
     assert list(world[component1]) == ['a', 'b', 'c', 'a']
 
+# TODO: give using loc indexing, with setter
+def test_world_give_single():
+    component1 = Component('some')
+
+    world = World()
+
+    world.add_entities({component1: ['d']})
+    world.give(1, {component1: 'b'})
+    pd.testing.assert_series_equal(
+        world[component1],
+        pd.DataFrame({component1: ['d', 'b']})[component1]
+    )
 
 def test_world_take():
     component1 = Component('some')
@@ -321,6 +339,7 @@ def test_world_setting():
 
 # TODO: find elegant way to test both loc-setting and update
 # TODO: test also with setting individual subcomponents 
+# TODO: test setting more than 2 levels - or at least temporarily forbid it.
 def test_world_set_compound():
     a = Component('a')
     b = Component('b')
@@ -336,6 +355,8 @@ def test_world_set_compound():
         world[c],
         pd.DataFrame({a: [0, 1], b: [1, 0]})
     )
+    world.loc[0, c] = [1, 2]
+    assert all(world.loc[0, c] == [1, 2])
     
 
 def test_world_loc_del():
@@ -365,3 +386,4 @@ def test_world_index():
     new = world.add_entities({comp1: [1, 2, 3, 4, 5]})
     assert all(world.index == new)
 
+# TODO: give non-iterable index

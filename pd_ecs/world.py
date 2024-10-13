@@ -40,16 +40,23 @@ class LocIndexer:
             raise ValueError(
                 "Loc indexing without components is not supported")
         index, columns = key
+
         if not isinstance(columns, list):
             columns = [columns]
-
+        _columns = []
+        for col in columns:
+            if isinstance(col, Component) and col.is_compound:
+                for _, comp in col.subcomponents.items():
+                    _columns.append(comp)
+            else:
+                _columns.append(col)
+        columns = _columns
         if pd.api.types.is_scalar(index):
             self._set_single_row(values, index, columns)
             return
 
         data = pd.DataFrame(values, columns=columns, index=index)
-        for column, series in data.items():
-            self._set_column(column, series.index, series.values)
+        self.world.update(data)
 
     def _set_single_row(self, values, index, columns):
         val = pd.Series(values, index=columns)
@@ -201,6 +208,8 @@ class World:
 
     def give(self, ids, components):
         """Add given components to entities corresponding to ids."""
+        if np.isscalar(ids):
+            ids = [ids]
         frames = _component_series(components, indices=ids)
         self._add_components(frames, ids)
 
@@ -242,7 +251,7 @@ class World:
                     for col, value in frame.items()}
                 )
             else:
-                self[comp].loc[frame.index] = frame
+                self.loc._set_column(comp, frame.index, frame.values)
 
 
 def _component_series(components, indices):
