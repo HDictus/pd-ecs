@@ -43,7 +43,7 @@ class Component:
     # pylint: disable=no-member,useless-parent-delegation
     def __getattr__(self, attr):
         """To satisfy linters."""
-        return super().__getattr__(attr)
+        raise AttributeError(f"no subcomponent or attribute {attr}")
 
     def __repr__(self):
         """Convert to string for representation."""
