@@ -103,46 +103,70 @@ class World:
         ids = []
         for _, df in self._dict.items():
             ids = df.index.union(ids)
-        return ids
+        return ids.astype(np.int64)
 
     def __getitem__(self, key):
         """Get data for components."""
-        item = self._get_item(key)
+        # 3 possibilities
+        # key is a simple component
+        # key is a compound component
+        # key is a tuple (subcomponent)
+        # key is exclude
+        # key is a list of some combination of these
         if isinstance(key, Component) and key.is_compound:
-            item = item[key]
-        return item
-
-    def _get_item(self, key):
-        if isinstance(key, list):
-            return self._get_multiple(key)
-        _validate_component(key)
-        # TODO: not really happy with this
-        if isinstance(key, Component) and key.is_compound:
-            return self._get_multiple(list(key.subcomponents.values()))
-        series = self._get(key)
-        series.name = key
-        return series
+            return self._get(key)[key]
+        return self._get(key)
 
     def _get(self, key):
+        if isinstance(key, list):
+            # TODO: here is the issue: converting to have multiple levels
+            #   Solution: everything is multi-column, we just hide it for noncompound
+            dfs = []
+            dframe = False
+
+            for k in key:
+                res = self._get(k)
+                if len(res.index) == 0:
+                    return pd.DataFrame({}, index=[], columns=self._determine_columns(key))
+                if isinstance(res, pd.DataFrame) and len(res.columns) > 0:
+                    dframe = True
+                dfs.append(res)
+
+            if dframe:
+                dfs = [_dataframify(df) for df in dfs]
+
+            out = pd.concat(dfs, join='inner', axis=1)
+            return out
+
+        if isinstance(key, Exclude):
+            idx = self.index.difference(self._get(key.component).index)
+            return pd.DataFrame(
+                {}, 
+                index=idx
+            )
+        if isinstance(key, tuple):
+            return self._get(key[0])[key]
         if key not in self._dict:
+            self._initialize(key)
+        if isinstance(key, Component):
             if key in GETTERS:
                 return GETTERS[key](self)
-            self._initialize_state((key,))
-        return self._dict[key]
+            return self._dict[key]
 
-    def _get_multiple(self, key):
-        exclude = [k for k in key if isinstance(k, Exclude)]
-        to_concat = [self._get_item(k) for k in key if k not in exclude]
+        raise ComponentError("Not a valid Component:", key)
 
-        for exclude_component in exclude:
-            excluded = to_concat[0].index.intersection(
-                self[exclude_component.component].index
-            )
-            to_concat[0] = to_concat[0].drop(excluded, axis=0)
-
-        out = pd.concat(to_concat, join="inner", axis=1)
-        _ensure_columns_index_level_consistent(out)
-        return out
+    def _initialize(self, key):
+        if isinstance(key, Component):
+            # this can be moved into component
+            if key.is_compound:
+                self._dict[key] = pd.DataFrame({
+                    combo: combo[-1].init_series()
+                    for comp, combo in key.subcomponents.items()})
+                return
+            self._dict[key] = key.init_series()
+            return
+        if isinstance(key, tuple):
+            self._initialize(key[0])
 
     @lazy
     def loc(self):
@@ -150,6 +174,8 @@ class World:
         return LocIndexer(self)
 
     def _initialize_state(self, components: Iterable):
+        # TODO: a lot of this logic can probably be moved to
+        #   Component
         for component in components:
             if isinstance(component, tuple):
                 series = component[-1].init_series()
@@ -157,6 +183,26 @@ class World:
                 self._dict[component] = series
                 continue
             self._dict[component] = component.init_series()
+
+    def _determine_columns(self, keys):
+        cols = []
+        deep = False
+        alldeep = True
+        for key in keys:
+            if isinstance(key, Component) and key.is_compound:
+                cols += self._determine_columns(key.subcomponents.values())
+                deep = True
+                continue
+            if isinstance(key, Exclude):
+                continue
+            if deep:
+                key = (key, '')
+            else:
+                alldeep = False
+            cols.append(key)
+        if deep and not alldeep:
+            cols = [_deepify(col) for col in cols]
+        return cols
 
     def set_state(self, state: Dict[Component, pd.DataFrame]):
         """
@@ -192,19 +238,38 @@ class World:
         return list(indices)
 
     def _add_components(self, frame, indices):
+        compound = {}
         for comp, series in frame.items():
+            if isinstance(comp, tuple):
+                compound[comp[0]] = compound.get(comp[0], {})
+                compound[comp[0]][comp] = series
+                continue
             self._add_component(comp, series, indices)
+        self._add_compound(compound)
 
     def _add_component(self, comp, series, indices):
         _validate_component(comp)
-        if comp not in self._dict:
-            self._initialize_state((comp,))
+        prev = self[comp]
         new_comp = pd.concat([
-            self._dict[comp],
+            prev,
             pd.Series(series, index=indices)])
-        new_comp.name = self._dict[comp].name
+        new_comp.name = prev.name
+        # TODO: logic for dealing wiht compound components is quite scattered
+        #  could there be a way to localize it, e.g. inside the Component class?new_comp[~new_comp.index.duplicated(keep="last")]
+        new_comp = new_comp[~new_comp.index.duplicated(keep="last")].sort_index()
+        self._dict[comp] = new_comp
 
-        self._dict[comp] = new_comp[~new_comp.index.duplicated(keep="last")]
+    def _add_compound(self, compounds):
+        for comp, subcomponents in compounds.items():
+            prev = self._get(comp)
+            df = pd.DataFrame(subcomponents)
+            self._dict[comp] = pd.concat([
+                prev.loc[prev.index.difference(df.index)],
+                df
+                ],
+                axis=0
+            ).sort_index()
+            
 
     def give(self, ids, components):
         """Add given components to entities corresponding to ids."""
@@ -216,11 +281,7 @@ class World:
     def take(self, ids, *components):
         """Remove given components from entities corresponding to ids."""
         for component in components:
-            if component.is_compound:
-                for _, comp in component.subcomponents.items():
-                    self._dict[comp].drop(ids, inplace=True)
-            else:
-                self._dict[component].drop(ids, inplace=True)
+            self._dict[component].drop(ids, inplace=True)
 
     def remove_entities(self, ids):
         """
@@ -298,3 +359,13 @@ def _ensure_columns_index_level_consistent(df):
             cols.append(col)
         df.columns = pd.MultiIndex.from_tuples(cols)
     return df
+
+def _dataframify(df):
+    if isinstance(df, pd.DataFrame):
+        return df
+    return pd.DataFrame({(df.name, ''): df})
+
+def _deepify(col):
+    if isinstance(col, tuple):
+        return col
+    return (col, '')

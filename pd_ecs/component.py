@@ -21,7 +21,7 @@ class Component:
     dtype: Union[str, np.dtype, pd.api.extensions.ExtensionDtype]
     is_compound = False
 
-    def __init__(self, name, dtype=object, **subcomponents):
+    def __init__(self, name, dtype=None, **subcomponents):
         """Initialize a component type.
 
         Arguments:
@@ -62,4 +62,4 @@ class Component:
 
     def init_series(self):
         """Initialize a series for this component."""
-        return pd.Series([], dtype=self.dtype, name=self)
+        return pd.Series([], dtype=self.dtype or np.int64, name=self)

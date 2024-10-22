@@ -65,7 +65,6 @@ def test_world_with_loc():
         world.loc[[0, 1]]
 
 
-
 def test_world_index_negation():
     component1 = Component('some')
     component2 = Component('field')
@@ -84,6 +83,34 @@ def test_world_index_negation():
 
     pd.testing.assert_frame_equal(
         world[[component1, ~component2]],
+        exp)
+
+    pd.testing.assert_frame_equal(
+        world[[component2, ~component1]],
+        pd.DataFrame({}, index=[], columns=[component2]))
+
+def test_world_index_compound():
+    component1 = Component('some')
+    component2 = Component('field')
+    component3 = Component('fields', one=component1, two=component2)
+
+    world = World()
+    has_2 = world.add_entities({
+        component3.one: [1, 2],
+        component3.two: [3, 4],
+        component2: [4, 5]})
+    has1 = world.add_entities({
+        component3.one: [4, 5, 6],
+        component3.two: [7, 8, 9]})
+    expdict = {
+            component3.one: [4, 5, 6],
+            component3.two: [7, 8, 9]}
+    exp = pd.DataFrame(
+        expdict,
+        index=has1)
+
+    pd.testing.assert_frame_equal(
+        world[[component3, ~component2]],
         exp)
 
 
@@ -130,7 +157,8 @@ def test_world_add_entities_array():
         world[component1],
         pd.Series([1, 2, 3, 4], name=component1))
 
-
+# TODO: how should we deal with incomplete specification of compound components?
+#   any ideas?
 def test_world_add_entities_with_compound_components():
     component1 = Component('some')
     component2 = Component('field')
@@ -229,8 +257,8 @@ def test_world_give():
         [1, 4, 2, 5],
         {component1: ['a', 'b', 'c', 'a']})
 
-    assert list(world[component1].index) == [1, 4, 2, 5]
-    assert list(world[component1]) == ['a', 'b', 'c', 'a']
+    assert list(world[component1].index) == [1, 2, 4, 5]
+    assert list(world[component1]) == ['a', 'c', 'b', 'a']
 
 # TODO: give using loc indexing, with setter
 def test_world_give_single():
