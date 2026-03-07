@@ -24,3 +24,11 @@ def test_ec_mutates_dataframes():
         collection,
         pd.concat([df1, df2], axis=1, join='inner')
     )
+
+    collection.loc[[1, 2], 'c'] = 6
+    assert np.allclose(df2.loc[[1, 2], 'c'], 6)
+
+    pd.testing.assert_frame_equal(
+        collection,
+        pd.concat([df1, df2], axis=1, join='inner')
+    )
