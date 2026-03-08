@@ -63,3 +63,7 @@ class Component:
     def init_series(self):
         """Initialize a series for this component."""
         return pd.Series([], dtype=self.dtype or np.int64, name=self)
+
+    def __lt__(self, other):
+        if isinstance(other, Component):
+            return self.name < other.name
