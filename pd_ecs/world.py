@@ -67,7 +67,10 @@ class LocIndexer:
         if column in SETTERS:
             SETTERS[column](self.world, index, values)
             return
-        self.world[column].loc[index] = values
+        if isinstance(column, tuple):
+            self.world._dict[column[0]].loc[index, column] = values
+        else:
+            self.world._dict[column].loc[index] = values
 
     def __delitem__(self, key):
         """Remove components or delete entities."""
