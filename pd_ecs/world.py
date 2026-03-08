@@ -135,13 +135,13 @@ class World:
             if dframe:
                 dfs = [_dataframify(df) for df in dfs]
 
-            out = pd.concat(dfs, join='inner', axis=1)
+            out = pd.concat(dfs, join='inner', axis=1, copy=False)
             return out
 
         if isinstance(key, Exclude):
             idx = self.index.difference(self._get(key.component).index)
             return pd.DataFrame(
-                {}, 
+                {},
                 index=idx
             )
         if isinstance(key, tuple):
