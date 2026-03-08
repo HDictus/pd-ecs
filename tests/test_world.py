@@ -414,4 +414,19 @@ def test_world_index():
     new = world.add_entities({comp1: [1, 2, 3, 4, 5]})
     assert all(world.index == new)
 
+
+def test_world_multiindex_when_component_empty():
+    x = Component('x')
+    y = Component('y')
+    posn = Component('position', x=x, y=y)
+    vel = Component('velocity', x=x, y=y)
+
+    world = World()
+    world.add_entities({
+        posn.x: [1, 2, 3, 4],
+        posn.y: [2, 3, 4, 5]})
+
+    combined = world[[posn, vel]]
+    assert len(combined[posn]) == 0
+    
 # TODO: give non-iterable index

@@ -126,7 +126,6 @@ class World:
             #   Solution: everything is multi-column, we just hide it for noncompound
             dfs = []
             dframe = False
-
             for k in key:
                 res = self._get(k)
                 if len(res.index) == 0:
@@ -205,6 +204,8 @@ class World:
             cols.append(key)
         if deep and not alldeep:
             cols = [_deepify(col) for col in cols]
+        if deep:
+            return pd.MultiIndex.from_tuples(cols)
         return cols
 
     def set_state(self, state: Dict[Component, pd.DataFrame]):
