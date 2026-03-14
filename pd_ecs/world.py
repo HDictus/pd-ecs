@@ -99,14 +99,15 @@ class World:
         """Create a world."""
         self._dict: dict = {}
         self.maxind = 0
+        self._index = None
 
     @property
     def index(self):
         """All entity ids."""
-        ids = []
-        for _, df in self._dict.items():
-            ids = df.index.union(ids)
-        return ids.astype(np.int64)
+        if self._index is None:
+            self._index = pd.RangeIndex(0, self.maxind)
+            self._idxmx = self.maxind
+        return self._index
 
     def __getitem__(self, key):
         """Get data for components."""
@@ -239,6 +240,7 @@ class World:
         frames = _component_series(component_values, indices)
         self._add_components(frames, indices)
         self.maxind += num_entities
+        self._index = None
         return list(indices)
 
     def _add_components(self, frame, indices):
@@ -298,6 +300,7 @@ class World:
         for _, data in self._dict.items():
             ids_in = np.intersect1d(ids, data.index)
             data.drop(ids_in, inplace=True)
+        self._index = None
 
     def update(self, components: Dict[Component, pd.DataFrame]):
         """

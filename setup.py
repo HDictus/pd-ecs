@@ -22,7 +22,7 @@ setup(
     author="Hugo Dictus",
     author_email="hugo.dictus@epfl.ch",
     version=VERSION,
-    description="Visual cortex analyses",
+    description="ECS based on pandas",
     long_description=README,
     long_description_content_type="text/x-rst",
     license="MIT",
