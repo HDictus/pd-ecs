@@ -7,8 +7,6 @@ import pandas as pd
 
 from pd_ecs._filter_ops import Exclude
 
-unnamed_components: list = []
-
 
 class Component:
     """Components of entities in the world.
@@ -19,31 +17,10 @@ class Component:
 
     name: str
     dtype: Union[str, np.dtype, pd.api.extensions.ExtensionDtype]
-    is_compound = False
 
-    def __init__(self, name, dtype=None, **subcomponents):
-        """Initialize a component type.
-
-        Arguments:
-            fields: names of component variables (str)
-        """
+    def __init__(self, name, dtype=None):
         self.name = name
         self.dtype = dtype
-        # TODO: find an elegant way to have this be reflected in
-        #   static code analysis
-        # each component instance should be a type object?
-        # a named tuple or dataclass?
-        self.subcomponents = {}
-        for component_name, component in subcomponents.items():
-            combination = (self, component)
-            setattr(self, component_name, combination)
-            self.subcomponents[component_name] = combination
-            self.is_compound = True
-
-    # pylint: disable=no-member,useless-parent-delegation
-    def __getattr__(self, attr):
-        """To satisfy linters."""
-        raise AttributeError(f"no subcomponent or attribute {attr}")
 
     def __repr__(self):
         """Convert to string for representation."""
@@ -51,7 +28,7 @@ class Component:
 
     def __invert__(self):
         """Specify entities without this component.
-        
+
         When indexing the world, you can do:
             ```
             entities_wo_2 = world[[component1, ~component2]]

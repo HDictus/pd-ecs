@@ -36,21 +36,12 @@ class LocIndexer:
     def __setitem__(self, key, values):
         """Update/add components on entities."""
         if not isinstance(key, tuple):
-            # TODO: support this
             raise ValueError(
                 "Loc indexing without components is not supported")
         index, columns = key
 
         if not isinstance(columns, list):
             columns = [columns]
-        _columns = []
-        for col in columns:
-            if isinstance(col, Component) and col.is_compound:
-                for _, comp in col.subcomponents.items():
-                    _columns.append(comp)
-            else:
-                _columns.append(col)
-        columns = _columns
         if pd.api.types.is_scalar(index):
             self._set_single_row(values, index, columns)
             return
@@ -67,10 +58,7 @@ class LocIndexer:
         if column in SETTERS:
             SETTERS[column](self.world, index, values)
             return
-        if isinstance(column, tuple):
-            self.world._dict[column[0]].loc[index, column] = values
-        else:
-            self.world._dict[column].loc[index] = values
+        self.world._dict[column].loc[index] = values
 
     def __delitem__(self, key):
         """Remove components or delete entities."""
@@ -81,13 +69,9 @@ class LocIndexer:
         cols = key[1]
         if not isinstance(cols, list):
             cols = [cols]
-        components = [c if isinstance(c, Component)
-                      else c[0] for c in cols]
-        self.world.take(index, *components)
+        self.world.take(index, *cols)
 
 
-# TODO: a disproportionate amount of functionality is getting clustered in world
-#    separate it out, e.g. into _impls ?
 class World:
     """
     The World stores and manages the state and events of the simulation.
@@ -111,44 +95,23 @@ class World:
 
     def __getitem__(self, key):
         """Get data for components."""
-        # 3 possibilities
-        # key is a simple component
-        # key is a compound component
-        # key is a tuple (subcomponent)
-        # key is exclude
-        # key is a list of some combination of these
-        if isinstance(key, Component) and key.is_compound:
-            return self._get(key)[key]
         return self._get(key)
 
     def _get(self, key):
         if isinstance(key, list):
-            # TODO: here is the issue: converting to have multiple levels
-            #   Solution: everything is multi-column, we just hide it for noncompound
             dfs = []
-            dframe = False
             for k in key:
                 res = self._get(k)
                 if len(res.index) == 0:
-                    return pd.DataFrame({}, index=[], columns=self._determine_columns(key))
-                if isinstance(res, pd.DataFrame) and len(res.columns) > 0:
-                    dframe = True
+                    return pd.DataFrame(
+                        {}, index=[], columns=self._determine_columns(key))
                 dfs.append(res)
-
-            if dframe:
-                dfs = [_dataframify(df) for df in dfs]
-
-            out = pd.concat(dfs, join='inner', axis=1, copy=False)
-            return out
+            return pd.concat(dfs, join='inner', axis=1, copy=False)
 
         if isinstance(key, Exclude):
             idx = self.index.difference(self._get(key.component).index)
-            return pd.DataFrame(
-                {},
-                index=idx
-            )
-        if isinstance(key, tuple):
-            return self._get(key[0])[key]
+            return pd.DataFrame({}, index=idx)
+
         if key not in self._dict:
             self._initialize(key)
         if isinstance(key, Component):
@@ -160,16 +123,7 @@ class World:
 
     def _initialize(self, key):
         if isinstance(key, Component):
-            # this can be moved into component
-            if key.is_compound:
-                self._dict[key] = pd.DataFrame({
-                    combo: combo[-1].init_series()
-                    for comp, combo in key.subcomponents.items()})
-                return
             self._dict[key] = key.init_series()
-            return
-        if isinstance(key, tuple):
-            self._initialize(key[0])
 
     @lazy
     def loc(self):
@@ -177,37 +131,11 @@ class World:
         return LocIndexer(self)
 
     def _initialize_state(self, components: Iterable):
-        # TODO: a lot of this logic can probably be moved to
-        #   Component
         for component in components:
-            if isinstance(component, tuple):
-                series = component[-1].init_series()
-                series.name = component
-                self._dict[component] = series
-                continue
             self._dict[component] = component.init_series()
 
     def _determine_columns(self, keys):
-        cols = []
-        deep = False
-        alldeep = True
-        for key in keys:
-            if isinstance(key, Component) and key.is_compound:
-                cols += self._determine_columns(key.subcomponents.values())
-                deep = True
-                continue
-            if isinstance(key, Exclude):
-                continue
-            if deep:
-                key = (key, '')
-            else:
-                alldeep = False
-            cols.append(key)
-        if deep and not alldeep:
-            cols = [_deepify(col) for col in cols]
-        if deep:
-            return pd.MultiIndex.from_tuples(cols)
-        return cols
+        return [key for key in keys if not isinstance(key, Exclude)]
 
     def set_state(self, state: Dict[Component, pd.DataFrame]):
         """
@@ -228,9 +156,7 @@ class World:
         Add entities to the world.
 
         Arguments:
-            component_values is a dict of dicts  of the form
-                {<component>: {<field>: values}}
-                the columns of the dataframe are the fields of the components
+            component_values is a dict of the form {<component>: values}
                 the index is ignored
                 a dataframe or list of dicts also works
         """
@@ -238,20 +164,11 @@ class World:
         num_entities = len(component_values)
         indices = range(self.maxind, self.maxind + num_entities)
         frames = _component_series(component_values, indices)
-        self._add_components(frames, indices)
+        for comp, series in frames.items():
+            self._add_component(comp, series, indices)
         self.maxind += num_entities
         self._index = None
         return list(indices)
-
-    def _add_components(self, frame, indices):
-        compound = {}
-        for comp, series in frame.items():
-            if isinstance(comp, tuple):
-                compound[comp[0]] = compound.get(comp[0], {})
-                compound[comp[0]][comp] = series
-                continue
-            self._add_component(comp, series, indices)
-        self._add_compound(compound)
 
     def _add_component(self, comp, series, indices):
         _validate_component(comp)
@@ -260,29 +177,16 @@ class World:
             prev,
             pd.Series(series, index=indices)])
         new_comp.name = prev.name
-        # TODO: logic for dealing wiht compound components is quite scattered
-        #  could there be a way to localize it, e.g. inside the Component class?new_comp[~new_comp.index.duplicated(keep="last")]
         new_comp = new_comp[~new_comp.index.duplicated(keep="last")].sort_index()
         self._dict[comp] = new_comp
-
-    def _add_compound(self, compounds):
-        for comp, subcomponents in compounds.items():
-            prev = self._get(comp)
-            df = pd.DataFrame(subcomponents)
-            self._dict[comp] = pd.concat([
-                prev.loc[prev.index.difference(df.index)],
-                df
-                ],
-                axis=0
-            ).sort_index()
-            
 
     def give(self, ids, components):
         """Add given components to entities corresponding to ids."""
         if np.isscalar(ids):
             ids = [ids]
         frames = _component_series(components, indices=ids)
-        self._add_components(frames, ids)
+        for comp, series in frames.items():
+            self._add_component(comp, series, ids)
 
     def take(self, ids, *components):
         """Remove given components from entities corresponding to ids."""
@@ -313,13 +217,7 @@ class World:
                 index.
         """
         for comp, frame in components.items():
-            if isinstance(comp, Component) and comp.is_compound:
-                self.update({
-                    (comp, col): value
-                    for col, value in frame.items()}
-                )
-            else:
-                self.loc._set_column(comp, frame.index, frame.values)
+            self.loc._set_column(comp, frame.index, frame.values)
 
 
 def _component_series(components, indices):
@@ -335,44 +233,9 @@ def _component_series(components, indices):
     }
 
 
-def _is_component(comp):
-    if isinstance(comp, Component):
-        return True
-    return isinstance(comp, tuple) and all(
-        isinstance(c, Component) for c in comp)
-
-
 def _validate_component(comp):
-    if not _is_component(comp):
+    if not isinstance(comp, Component):
         raise ComponentError(
             "component column names must be Component objects. "
             f"Recieved {comp} instead"
         )
-
-
-def _ensure_columns_index_level_consistent(df):
-    column_index_depth = 1
-    for k in df.columns:
-        if isinstance(k, tuple):
-            column_index_depth = max(column_index_depth, len(k))
-    if column_index_depth == 1:
-        return df
-    if column_index_depth > 1:
-        cols = []
-        for col in df.columns:
-            if not isinstance(col, tuple):
-                col = (col,)
-            col += ("",) * (column_index_depth - len(col))
-            cols.append(col)
-        df.columns = pd.MultiIndex.from_tuples(cols)
-    return df
-
-def _dataframify(df):
-    if isinstance(df, pd.DataFrame):
-        return df
-    return pd.DataFrame({(df.name, ''): df})
-
-def _deepify(col):
-    if isinstance(col, tuple):
-        return col
-    return (col, '')
