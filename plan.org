@@ -1,0 +1,19 @@
+There are a few steps to take to improve the efficiency.
+
+First, we need to remove support for multi-level component indices.
+They're prohibitively inefficient, and they make the program much more complicated.
+Something we need to decide is whether to support a hierarchy depth of one.
+In this case, the top-level component references the dataframe, and the dataframe has a single-level index.
+That single-level index still needs to have column names that combine the top and bottom level, so it can be concatenated (& veiwed).
+This could reduce performance overheads a lot in some cases, for example
+if you have many operations that use x, y, vx, vy then you can avoid constructing a view by declaring them all subcomponents of a physics component.
+
+I think we need to address the sorting first, and then we can see if it is a good idea to store subcomponents together.
+
+
+So, first things first, we sort by archetype.
+Then we implement slice-based views.
+After that we'll have to see : maybe some method of deciding the ordering of archetypes for optimization,
+or maybe it will be about grouping components that always go together.
+
+
