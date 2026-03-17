@@ -246,7 +246,7 @@ def test_world_set_state():
     world.set_state(state)
     for comp in state.keys():
         exp = pd.Series(state[comp], name=comp)
-        pd.testing.assert_series_equal(world[comp], exp)
+        pd.testing.assert_series_equal(world[comp].sort_index(), exp.sort_index())
 
 
 def test_world_set_state_invalid_fields():

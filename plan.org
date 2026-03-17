@@ -17,3 +17,13 @@ After that we'll have to see : maybe some method of deciding the ordering of arc
 or maybe it will be about grouping components that always go together.
 
 
+
+* sorting by archetypes
+
+After implementing the sort, a lot of stuff is non-vectorized so it is super slow.
+In order to make it better, I will use a bit to represent the presence/absence of each component.
+This leads to an n-bit integer representing each archetype.
+
+I think I need to make a separate module and unit test it for this, because it is going to get tricky.
+I need to somehow disentangle it from the World class.
+Not today, a little tired.
