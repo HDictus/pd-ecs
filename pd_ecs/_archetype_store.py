@@ -9,29 +9,26 @@ class ArchetypeStore:
         self._component_powers = {}
         self._dtype = dtype
 
-    def add_entities(self, eid):
-        if np.isscalar(eid):
-            eids = [eid]
-        else:
-            eids = list(eid)
-        if len(eids) != len(set(eids)):
+    def add_entities(self, eids):
+        if np.isscalar(eids):
+            eids = [eids]
+        if len(np.unique(eids)) < len(eids):
             raise ValueError(f"duplicate eids in input")
-        overlap = set(eids) & set(self.series.index)
-        if overlap:
+        overlap = self.series.index.intersection(eids)
+        if len(overlap):
             raise ValueError(f"entities already exist: {overlap}")
         self.series = pd.concat([
             self.series,
             pd.Series(0, index=eids, dtype=self._dtype)
         ])
 
-    def add_component(self, eid, component):
-        if np.isscalar(eid):
-            eids = [eid]
-        else:
-            eids = list(eid)
-        missing = pd.Index(eids).difference(self.series.index)
-        if len(missing):
-            raise KeyError(missing[0])
+    def _validate_eids(self, eids):
+        if np.isscalar(eids):
+            eids = [eids]
+        return eids
+
+    def add_component(self, eids, component):
+        eids = self._validate_eids(eids)
         if component in self._component_powers:
             powerof2 = self._component_powers[component]
         else:
@@ -45,14 +42,8 @@ class ArchetypeStore:
             self._component_powers[component] = powerof2
         self.series.loc[eids] = self.series.loc[eids] | powerof2
 
-    def remove_component(self, eid, component):
-        if np.isscalar(eid):
-            eids = [eid]
-        else:
-            eids = list(eid)
-        missing = pd.Index(eids).difference(self.series.index)
-        if len(missing):
-            raise KeyError(missing[0])
+    def remove_component(self, eids, component):
+        eids = self._validate_eids(eids)
         if component not in self._component_powers:
             raise KeyError(component)
         powerof2 = self._component_powers[component]
