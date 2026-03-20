@@ -26,4 +26,7 @@ This leads to an n-bit integer representing each archetype.
 
 I think I need to make a separate module and unit test it for this, because it is going to get tricky.
 I need to somehow disentangle it from the World class.
-Not today, a little tired.
+
+I got somewhere. I can ask claude to setup the edge cases.
+Then I can use it as a sort key in the entity class.
+After that, I can start working on constructing array views.

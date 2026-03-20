@@ -117,3 +117,88 @@ def test_dtype_overflow_raises():
         archs.add_component(0, Component(f'c{i}'))
     with pytest.raises(OverflowError):
         archs.add_component(0, Component('overflow'))
+
+
+# --- vectorized operations ---
+
+def test_add_multiple_entities():
+    archs = ArchetypeStore(dtype=np.uint32)
+    archs.add_entities([0, 1, 2])
+    pd.testing.assert_series_equal(
+        archs.series,
+        pd.Series([0, 0, 0], index=[0, 1, 2], dtype=np.uint32)
+    )
+
+
+def test_add_multiple_entities_existing_raises():
+    archs = ArchetypeStore()
+    archs.add_entities(0)
+    with pytest.raises(ValueError):
+        archs.add_entities([1, 0])  # 0 already exists
+
+
+def test_add_multiple_entities_internal_duplicate_raises():
+    archs = ArchetypeStore()
+    with pytest.raises(ValueError):
+        archs.add_entities([0, 0])
+
+
+def test_add_component_to_multiple_entities():
+    archs = ArchetypeStore(dtype=np.uint32)
+    comp = Component('a')
+    archs.add_entities([0, 1, 2])
+    archs.add_component([0, 1, 2], comp)
+    pd.testing.assert_series_equal(
+        archs.series,
+        pd.Series([1, 1, 1], index=[0, 1, 2], dtype=np.uint32)
+    )
+
+
+def test_add_component_to_multiple_entities_idempotent():
+    archs = ArchetypeStore(dtype=np.uint32)
+    comp = Component('a')
+    archs.add_entities([0, 1, 2])
+    archs.add_component([0, 1], comp)
+    archs.add_component([1, 2], comp)  # entity 1 already has comp
+    pd.testing.assert_series_equal(
+        archs.series,
+        pd.Series([1, 1, 1], index=[0, 1, 2], dtype=np.uint32)
+    )
+
+
+def test_add_component_multiple_entities_invalid_eid_raises():
+    archs = ArchetypeStore()
+    comp = Component('a')
+    archs.add_entities([0, 1])
+    with pytest.raises(KeyError):
+        archs.add_component([0, 99], comp)
+
+
+def test_remove_component_from_multiple_entities():
+    archs = ArchetypeStore(dtype=np.uint32)
+    comp = Component('a')
+    archs.add_entities([0, 1, 2])
+    archs.add_component([0, 1, 2], comp)
+    archs.remove_component([0, 1], comp)
+    pd.testing.assert_series_equal(
+        archs.series,
+        pd.Series([0, 0, 1], index=[0, 1, 2], dtype=np.uint32)
+    )
+
+
+def test_remove_component_multiple_entities_not_present_raises():
+    archs = ArchetypeStore()
+    comp = Component('a')
+    archs.add_entities([0, 1, 2])
+    archs.add_component([0, 2], comp)  # entity 1 does not have comp
+    with pytest.raises(ValueError):
+        archs.remove_component([0, 1], comp)
+
+
+def test_remove_component_multiple_entities_invalid_eid_raises():
+    archs = ArchetypeStore()
+    comp = Component('a')
+    archs.add_entities([0, 1])
+    archs.add_component([0, 1], comp)
+    with pytest.raises(KeyError):
+        archs.remove_component([0, 99], comp)

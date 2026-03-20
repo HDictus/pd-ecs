@@ -10,16 +10,28 @@ class ArchetypeStore:
         self._dtype = dtype
 
     def add_entities(self, eid):
-        if eid in self.series.index:
-            raise ValueError(f"entity {eid!r} already exists")
+        if np.isscalar(eid):
+            eids = [eid]
+        else:
+            eids = list(eid)
+        if len(eids) != len(set(eids)):
+            raise ValueError(f"duplicate eids in input")
+        overlap = set(eids) & set(self.series.index)
+        if overlap:
+            raise ValueError(f"entities already exist: {overlap}")
         self.series = pd.concat([
             self.series,
-            pd.Series(0, index=[eid], dtype=self._dtype)
+            pd.Series(0, index=eids, dtype=self._dtype)
         ])
 
     def add_component(self, eid, component):
-        if eid not in self.series.index:
-            raise KeyError(eid)
+        if np.isscalar(eid):
+            eids = [eid]
+        else:
+            eids = list(eid)
+        missing = pd.Index(eids).difference(self.series.index)
+        if len(missing):
+            raise KeyError(missing[0])
         if component in self._component_powers:
             powerof2 = self._component_powers[component]
         else:
@@ -29,18 +41,23 @@ class ArchetypeStore:
                     f"cannot add component {component!r}: "
                     f"dtype {self._dtype} only supports {np.iinfo(self._dtype).bits} components"
                 )
-            powerof2 = 2 ** next_bit
+            powerof2 = self._dtype(2 ** next_bit)
             self._component_powers[component] = powerof2
-        if self.series[eid] & powerof2:
-            return  # already present — idempotent
-        self.series[eid] += powerof2
+        self.series.loc[eids] = self.series.loc[eids] | powerof2
 
     def remove_component(self, eid, component):
-        if eid not in self.series.index:
-            raise KeyError(eid)
+        if np.isscalar(eid):
+            eids = [eid]
+        else:
+            eids = list(eid)
+        missing = pd.Index(eids).difference(self.series.index)
+        if len(missing):
+            raise KeyError(missing[0])
         if component not in self._component_powers:
             raise KeyError(component)
         powerof2 = self._component_powers[component]
-        if not (self.series[eid] & powerof2):
-            raise ValueError(f"entity {eid!r} does not have component {component!r}")
-        self.series[eid] -= powerof2
+        subset = self.series.loc[eids]
+        lacking = subset.index[subset & powerof2 == 0]
+        if len(lacking):
+            raise ValueError(f"entities {list(lacking)} do not have component {component!r}")
+        self.series.loc[eids] = subset & ~powerof2
