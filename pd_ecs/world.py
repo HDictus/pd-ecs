@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 from lazy import lazy
 
+from ._archetype_store import ArchetypeStore
 from ._filter_ops import Exclude
 from .component import Component
 from .data_abstraction import GETTERS, SETTERS
@@ -82,7 +83,7 @@ class World:
     def __init__(self):
         """Create a world."""
         self._dict: dict = {}
-        self._entity_archetypes: dict = {}  # entity_id -> set of Components
+        self._archs = ArchetypeStore()
         self.maxind = 0
         self._index = None
 
@@ -94,17 +95,14 @@ class World:
             self._idxmx = self.maxind
         return self._index
 
-    def _archetype_sort_key(self, eid):
-        archetype = self._entity_archetypes.get(eid, set())
-        return (tuple(sorted(c.name for c in archetype)), eid)
-
     def _sort(self, comp):
-        """Re-sort a component's series by archetype then entity id."""
+        """Re-sort a component's series by archetype bitmask then entity id."""
         series = self._dict[comp]
         if len(series) == 0:
             return
-        sorted_index = sorted(series.index, key=self._archetype_sort_key)
-        self._dict[comp] = series.loc[sorted_index]
+        masks = self._archs.series.reindex(series.index, fill_value=0)
+        order = np.lexsort((series.index.to_numpy(), masks.to_numpy()))
+        self._dict[comp] = series.iloc[order]
         self._dict[comp].name = comp
 
     def __getitem__(self, key):
@@ -164,14 +162,15 @@ class World:
         self._initialize_state(list(self._dict.keys()))
         for component in state:
             _validate_component(component)
-        # Rebuild archetypes from the full state before adding any data,
-        # so that _sort has complete archetype information from the start.
-        self._entity_archetypes = {}
+        # Rebuild archetype store from scratch before adding any data so that
+        # _sort has complete bitmask information from the start.
+        self._archs = ArchetypeStore()
+        all_eids = sorted({eid for data in state.values() for eid in data.index})
+        if all_eids:
+            self._archs.add_entities(all_eids)
         for component, data in state.items():
-            for eid in data.index:
-                if eid not in self._entity_archetypes:
-                    self._entity_archetypes[eid] = set()
-                self._entity_archetypes[eid].add(component)
+            if len(data.index):
+                self._archs.add_component(list(data.index), component)
         for component, data in state.items():
             self._add_component(component, data, data.index)
 
@@ -187,9 +186,10 @@ class World:
         component_values = pd.DataFrame(component_values)
         num_entities = len(component_values)
         indices = list(range(self.maxind, self.maxind + num_entities))
-        comps = set(component_values.columns)
-        for eid in indices:
-            self._entity_archetypes[eid] = comps
+        if indices:
+            self._archs.add_entities(indices)
+            for comp in component_values.columns:
+                self._archs.add_component(indices, comp)
         frames = _component_series(component_values, indices)
         for comp, series in frames.items():
             self._add_component(comp, series, indices)
@@ -212,11 +212,11 @@ class World:
         """Add given components to entities corresponding to ids."""
         if np.isscalar(ids):
             ids = [ids]
-        comps = set(components.keys())
-        for eid in ids:
-            if eid not in self._entity_archetypes:
-                self._entity_archetypes[eid] = set()
-            self._entity_archetypes[eid].update(comps)
+        new_eids = list(pd.Index(ids).difference(self._archs.series.index))
+        if new_eids:
+            self._archs.add_entities(new_eids)
+        for comp in components:
+            self._archs.add_component(ids, comp)
         frames = _component_series(components, indices=ids)
         for comp, series in frames.items():
             self._add_component(comp, series, ids)
@@ -226,12 +226,7 @@ class World:
         ids_list = [ids] if np.isscalar(ids) else list(ids)
         for component in components:
             self._dict[component].drop(ids_list, inplace=True)
-        for eid in ids_list:
-            for comp in components:
-                if eid in self._entity_archetypes:
-                    self._entity_archetypes[eid].discard(comp)
-        # Re-sort series whose entities' sort keys changed (those still
-        # containing any of ids_list, since their archetype just changed).
+            self._archs.remove_component(ids_list, component)
         ids_set = set(ids_list)
         for comp, series in self._dict.items():
             if ids_set.intersection(series.index):
@@ -245,11 +240,14 @@ class World:
             ids: the entity ids, corresponding to the indices of rows
                 corresponding to these entities in the component dataframes.
         """
+        if np.isscalar(ids):
+            ids = [ids]
         for _, data in self._dict.items():
             ids_in = np.intersect1d(ids, data.index)
             data.drop(ids_in, inplace=True)
-        for eid in ids:
-            self._entity_archetypes.pop(eid, None)
+        existing = list(pd.Index(ids).intersection(self._archs.series.index))
+        if existing:
+            self._archs.remove_entities(existing)
         self._index = None
 
     def update(self, components: Dict[Component, pd.DataFrame]):

@@ -190,8 +190,9 @@ def test_world_give():
         [1, 4, 2, 5],
         {component1: ['a', 'b', 'c', 'a']})
 
-    assert list(world[component1].index) == [1, 2, 4, 5]
-    assert list(world[component1]) == ['a', 'c', 'b', 'a']
+    # bitmask sort: entity 5 (comp1 only) < entities 1,2,4 (comp1+comp2)
+    assert list(world[component1].index) == [5, 1, 2, 4]
+    assert list(world[component1]) == ['a', 'a', 'c', 'b']
 
 # TODO: give using loc indexing, with setter
 def test_world_give_single():
