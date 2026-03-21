@@ -225,8 +225,10 @@ class World:
         """Remove given components from entities corresponding to ids."""
         ids_list = [ids] if np.isscalar(ids) else list(ids)
         for component in components:
-            self._dict[component].drop(ids_list, inplace=True)
-            self._archs.remove_component(ids_list, component)
+            if component in self._dict:
+                self._dict[component].drop(ids_list, inplace=True, errors='ignore')
+            if component in self._archs._component_powers:
+                self._archs.remove_component(ids_list, component)
         ids_set = set(ids_list)
         for comp, series in self._dict.items():
             if ids_set.intersection(series.index):

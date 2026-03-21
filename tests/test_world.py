@@ -317,3 +317,32 @@ def test_world_index():
     new = world.add_entities({comp1: [1, 2, 3, 4, 5]})
     assert all(world.index == new)
 
+
+def test_world_take_component_not_present_is_noop():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1, 2, 3]})   # entities 0,1,2 — no comp2
+    world.take([0], comp2)                    # entity 0 never had comp2
+    pd.testing.assert_series_equal(
+        world[comp1],
+        pd.Series([1, 2, 3], name=comp1)
+    )
+
+
+def test_world_take_component_partially_not_present_is_noop():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1, 2, 3], comp2: [4, 5, 6]})  # entities 0,1,2
+    world.take([0], comp2)                                      # removes comp2 from 0
+    world.take([0], comp2)                                      # entity 0 no longer has comp2 — no-op
+    pd.testing.assert_series_equal(
+        world[comp2],
+        pd.Series([5, 6], index=[1, 2], name=comp2)
+    )
+    pd.testing.assert_series_equal(
+        world[comp1],
+        pd.Series([1, 2, 3], name=comp1)
+    )
+

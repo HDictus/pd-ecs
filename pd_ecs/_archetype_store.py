@@ -58,7 +58,5 @@ class ArchetypeStore:
             raise KeyError(component)
         powerof2 = self._component_powers[component]
         subset = self.series.loc[eids]
-        lacking = subset.index[subset & powerof2 == 0]
-        if len(lacking):
-            raise ValueError(f"entities {list(lacking)} do not have component {component!r}")
+        # Entities that don't have the component are silently skipped.
         self.series.loc[eids] = subset & ~powerof2
