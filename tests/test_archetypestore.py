@@ -202,3 +202,64 @@ def test_remove_component_multiple_entities_invalid_eid_raises():
     archs.add_component([0, 1], comp)
     with pytest.raises(KeyError):
         archs.remove_component([0, 99], comp)
+
+
+# --- entity removal ---
+
+def test_remove_single_entity():
+    archs = ArchetypeStore(dtype=np.uint32)
+    archs.add_entities([0, 1, 2])
+    archs.remove_entities(1)
+    pd.testing.assert_series_equal(
+        archs.series,
+        pd.Series([0, 0], index=[0, 2], dtype=np.uint32)
+    )
+
+
+def test_remove_all_entities():
+    archs = ArchetypeStore(dtype=np.uint32)
+    archs.add_entities([0, 1])
+    archs.remove_entities([0, 1])
+    assert archs.series.empty
+
+
+def test_remove_entity_preserves_components_on_others():
+    archs = ArchetypeStore(dtype=np.uint32)
+    comp = Component('a')
+    archs.add_entities([0, 1])
+    archs.add_component([0, 1], comp)
+    archs.remove_entities(0)
+    assert archs.series[1] == 1
+
+
+def test_remove_entity_nonexistent_raises():
+    archs = ArchetypeStore()
+    archs.add_entities(0)
+    with pytest.raises(KeyError):
+        archs.remove_entities(99)
+
+
+def test_remove_entities_partial_nonexistent_raises():
+    archs = ArchetypeStore()
+    archs.add_entities([0, 1])
+    with pytest.raises(KeyError):
+        archs.remove_entities([0, 99])
+
+
+def test_remove_entities_duplicate_raises():
+    archs = ArchetypeStore()
+    archs.add_entities([0, 1])
+    with pytest.raises(ValueError):
+        archs.remove_entities([0, 0])
+
+
+def test_remove_multiple_entities():
+    archs = ArchetypeStore(dtype=np.uint32)
+    comp = Component('a')
+    archs.add_entities([0, 1, 2, 3])
+    archs.add_component([1, 2], comp)
+    archs.remove_entities([1, 3])
+    pd.testing.assert_series_equal(
+        archs.series,
+        pd.Series([0, 1], index=[0, 2], dtype=np.uint32)
+    )

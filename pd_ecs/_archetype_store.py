@@ -42,6 +42,16 @@ class ArchetypeStore:
             self._component_powers[component] = powerof2
         self.series.loc[eids] = self.series.loc[eids] | powerof2
 
+    def remove_entities(self, eids):
+        if np.isscalar(eids):
+            eids = [eids]
+        if len(np.unique(eids)) < len(eids):
+            raise ValueError(f"duplicate eids in input")
+        missing = pd.Index(eids).difference(self.series.index)
+        if len(missing):
+            raise KeyError(f"entities do not exist: {list(missing)}")
+        self.series = self.series.drop(index=eids)
+
     def remove_component(self, eids, component):
         eids = self._validate_eids(eids)
         if component not in self._component_powers:
