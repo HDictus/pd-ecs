@@ -20,12 +20,20 @@ class ArchetypeStore:
         self.series = pd.concat([
             self.series,
             pd.Series(0, index=eids, dtype=self._dtype)
-        ])
+        ]).sort_index()
 
     def _validate_eids(self, eids):
         if np.isscalar(eids):
             eids = [eids]
         return eids
+
+    def _positions(self, eids):
+        """Return positional indices for eids, raising KeyError for any missing."""
+        pos = self.series.index.get_indexer(eids)
+        missing = [e for e, p in zip(eids, pos) if p < 0]
+        if missing:
+            raise KeyError(missing)
+        return pos
 
     def add_component(self, eids, component):
         eids = self._validate_eids(eids)
@@ -40,7 +48,7 @@ class ArchetypeStore:
                 )
             powerof2 = self._dtype(2 ** next_bit)
             self._component_powers[component] = powerof2
-        self.series.loc[eids] = self.series.loc[eids] | powerof2
+        self.series.values[self._positions(eids)] |= powerof2
 
     def remove_entities(self, eids):
         if np.isscalar(eids):
@@ -57,6 +65,5 @@ class ArchetypeStore:
         if component not in self._component_powers:
             raise KeyError(component)
         powerof2 = self._component_powers[component]
-        subset = self.series.loc[eids]
-        # Entities that don't have the component are silently skipped.
-        self.series.loc[eids] = subset & ~powerof2
+        # Entities that don't have the component are silently skipped (&= is a no-op on zero bits).
+        self.series.values[self._positions(eids)] &= ~powerof2
