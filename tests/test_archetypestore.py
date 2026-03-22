@@ -291,3 +291,45 @@ def test_remove_multiple_entities():
         archs.series,
         pd.Series([0, 1], index=[0, 2], dtype=np.uint32)
     )
+
+def test_range_on_component_added():
+    archs = ArchetypeStore()
+    comp = Component('a')
+    archs.add_entities([0, 1, 2, 3, 4])
+    archs.add_component([0, 1, 2], comp)
+    pd.testing.assert_frame_equal(
+        archs.ranges[comp],
+        pd.DataFrame([
+            {'start': 0, 'stop': 3}],
+            index=[np.uint32(1)]
+        )
+    )
+
+def test_range_on_component_removed():
+    archs = ArchetypeStore()
+    comp = Component('a')
+    archs.add_entities([0, 1, 2, 3, 4])
+    archs.add_component([0, 1, 2], comp)
+
+    archs.remove_component(1, comp)
+    pd.testing.assert_frame_equal(
+        archs.ranges[comp],
+        pd.DataFrame([
+            {'start': 0, 'stop': 2}],
+            index=[np.uint32(1)]
+        )
+    )
+
+def test_range_on_entity_removed():
+    archs = ArchetypeStore()
+    comp = Component('a')
+    archs.add_entities([0, 1, 2, 3, 4])
+    archs.add_component([0, 1, 2], comp)
+    archs.remove_entities([2])
+    pd.testing.assert_frame_equal(
+        archs.ranges[comp],
+        pd.DataFrame([
+            {'start': 0, 'stop': 2}],
+            index=[np.uint32(1)]
+        )
+    )

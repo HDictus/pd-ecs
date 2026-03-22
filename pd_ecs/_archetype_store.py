@@ -8,6 +8,7 @@ class ArchetypeStore:
         self.series = pd.Series(dtype=dtype)
         self._component_powers = {}
         self._dtype = dtype
+        self.ranges = {}
 
     def add_entities(self, eids):
         if np.isscalar(eids):
@@ -48,7 +49,22 @@ class ArchetypeStore:
                 )
             powerof2 = self._dtype(2 ** next_bit)
             self._component_powers[component] = powerof2
-        self.series.values[self._positions(eids)] |= powerof2
+        positions = self._positions(eids)
+        self.series.values[positions] |= powerof2
+        self._update_ranges()
+
+    def _update_ranges(self):
+        archetype_counts = self.series.value_counts().sort_index()
+        for comp, pw2 in self._component_powers.items():
+            relevant_archetypes = archetype_counts[(archetype_counts.index & pw2) > 0]
+            cumsum = relevant_archetypes.cumsum()
+            self.ranges[comp] = pd.DataFrame(
+                {
+                    'start': np.concatenate([[0], cumsum.values[:-1]]),
+                    'stop': cumsum.values
+                },
+                index=relevant_archetypes.index
+            )
 
     def remove_entities(self, eids):
         if np.isscalar(eids):
@@ -59,6 +75,7 @@ class ArchetypeStore:
         if len(missing):
             raise KeyError(f"entities do not exist: {list(missing)}")
         self.series = self.series.drop(index=eids)
+        self._update_ranges()
 
     def remove_component(self, eids, component):
         eids = self._validate_eids(eids)
@@ -67,3 +84,4 @@ class ArchetypeStore:
         powerof2 = self._component_powers[component]
         # Entities that don't have the component are silently skipped (&= is a no-op on zero bits).
         self.series.values[self._positions(eids)] &= ~powerof2
+        self._update_ranges()
