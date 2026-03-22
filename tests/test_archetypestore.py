@@ -292,6 +292,13 @@ def test_remove_multiple_entities():
         pd.Series([0, 1], index=[0, 2], dtype=np.uint32)
     )
 
+def _ranges_df(rows, masks):
+    """Helper: build expected ranges DataFrame with uint32 archetype index."""
+    return pd.DataFrame(rows, index=np.array(masks, dtype=np.uint32))
+
+
+# --- basic ranges ---
+
 def test_range_on_component_added():
     archs = ArchetypeStore()
     comp = Component('a')
@@ -299,26 +306,21 @@ def test_range_on_component_added():
     archs.add_component([0, 1, 2], comp)
     pd.testing.assert_frame_equal(
         archs.ranges[comp],
-        pd.DataFrame([
-            {'start': 0, 'stop': 3}],
-            index=[np.uint32(1)]
-        )
+        _ranges_df([{'start': 0, 'stop': 3}], [1])
     )
+
 
 def test_range_on_component_removed():
     archs = ArchetypeStore()
     comp = Component('a')
     archs.add_entities([0, 1, 2, 3, 4])
     archs.add_component([0, 1, 2], comp)
-
     archs.remove_component(1, comp)
     pd.testing.assert_frame_equal(
         archs.ranges[comp],
-        pd.DataFrame([
-            {'start': 0, 'stop': 2}],
-            index=[np.uint32(1)]
-        )
+        _ranges_df([{'start': 0, 'stop': 2}], [1])
     )
+
 
 def test_range_on_entity_removed():
     archs = ArchetypeStore()
@@ -328,8 +330,51 @@ def test_range_on_entity_removed():
     archs.remove_entities([2])
     pd.testing.assert_frame_equal(
         archs.ranges[comp],
-        pd.DataFrame([
-            {'start': 0, 'stop': 2}],
-            index=[np.uint32(1)]
-        )
+        _ranges_df([{'start': 0, 'stop': 2}], [1])
+    )
+
+
+# --- multi-archetype ranges ---
+
+def test_ranges_component_spans_two_archetypes():
+    # comp1 alone (mask=1) and comp1+comp2 (mask=3)
+    archs = ArchetypeStore()
+    comp1 = Component('a')
+    comp2 = Component('b')
+    archs.add_entities([0, 1, 2, 3, 4])
+    archs.add_component([0, 1, 2, 3, 4], comp1)  # all: mask=1
+    archs.add_component([3, 4], comp2)             # 3,4: mask=3
+    # archetype_counts sorted: {1:3, 3:2}
+    # comp1 appears in both archetypes: cumsum {1:3, 3:5}
+    pd.testing.assert_frame_equal(
+        archs.ranges[comp1],
+        _ranges_df([{'start': 0, 'stop': 3}, {'start': 3, 'stop': 5}], [1, 3])
+    )
+    # comp2 only in archetype 3
+    pd.testing.assert_frame_equal(
+        archs.ranges[comp2],
+        _ranges_df([{'start': 0, 'stop': 2}], [3])
+    )
+
+
+def test_ranges_two_components_disjoint_archetypes():
+    # comp1-only, comp2-only, and comp1+comp2 entities
+    archs = ArchetypeStore()
+    comp1 = Component('a')
+    comp2 = Component('b')
+    archs.add_entities([0, 1, 2, 3, 4])
+    archs.add_component([0, 1], comp1)    # mask=1
+    archs.add_component([2, 3], comp2)    # mask=2
+    archs.add_component([4], comp1)
+    archs.add_component([4], comp2)       # mask=3
+    # archetype_counts sorted: {1:2, 2:2, 3:1}
+    # comp1 (bit 0): archetypes 1, 3 → {1:2, 3:1} → cumsum {1:2, 3:3}
+    pd.testing.assert_frame_equal(
+        archs.ranges[comp1],
+        _ranges_df([{'start': 0, 'stop': 2}, {'start': 2, 'stop': 3}], [1, 3])
+    )
+    # comp2 (bit 1): archetypes 2, 3 → {2:2, 3:1} → cumsum {2:2, 3:3}
+    pd.testing.assert_frame_equal(
+        archs.ranges[comp2],
+        _ranges_df([{'start': 0, 'stop': 2}, {'start': 2, 'stop': 3}], [2, 3])
     )
