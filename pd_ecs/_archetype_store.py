@@ -8,7 +8,6 @@ class ArchetypeStore:
         self.series = pd.Series(dtype=dtype)
         self._component_powers = {}
         self._dtype = dtype
-        self.ranges = {}
 
     def add_entities(self, eids):
         if np.isscalar(eids):
@@ -54,11 +53,21 @@ class ArchetypeStore:
         self._update_ranges()
 
     def _update_ranges(self):
+        self._ranges = None
+
+    @property
+    def ranges(self):
+        if self._ranges is None:
+            self._build_ranges()
+        return self._ranges
+
+    def _build_ranges(self):
         archetype_counts = self.series.value_counts().sort_index()
+        self._ranges = {}
         for comp, pw2 in self._component_powers.items():
             relevant_archetypes = archetype_counts[(archetype_counts.index & pw2) > 0]
             cumsum = relevant_archetypes.cumsum()
-            self.ranges[comp] = pd.DataFrame(
+            self._ranges[comp] = pd.DataFrame(
                 {
                     'start': np.concatenate([[0], cumsum.values[:-1]]),
                     'stop': cumsum.values
