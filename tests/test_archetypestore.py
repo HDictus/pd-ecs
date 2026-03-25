@@ -378,3 +378,22 @@ def test_ranges_two_components_disjoint_archetypes():
         archs.ranges[comp2],
         _ranges_df([{'start': 0, 'stop': 2}, {'start': 2, 'stop': 3}], [2, 3])
     )
+
+
+def test_choose_archetypes():
+    archs = ArchetypeStore()
+    comp1 = Component('a')
+    comp2 = Component('b')
+    archs.add_entities([0, 1, 2, 3, 4])
+    # will have ats 0, 1, 3, 2, 0
+    archs.add_component([1, 2], comp1)
+    archs.add_component([2, 3], comp2)
+    assert all(archs.choose_archetypes([comp1]) == [1, 3])
+    assert all(archs.choose_archetypes([comp1, comp2]) == [3])
+    assert all(archs.choose_archetypes([~comp1]) == [0, 2])
+    assert all(archs.choose_archetypes([comp1, ~comp2]) == 1)
+    comp3 = Component('c')
+    assert len(archs.choose_archetypes([comp3])) == 0
+    archs.add_component([2], comp3)  # gives at 3+2**2 = 7
+    # check excludes absent archetypes
+    assert all(archs.choose_archetypes([comp3]) == [7])

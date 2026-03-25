@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from pd_ecs._filter_ops import Exclude
 
 
 class ArchetypeStore:
@@ -62,7 +63,7 @@ class ArchetypeStore:
         return self._ranges
 
     def _build_ranges(self):
-        archetype_counts = self.series.value_counts().sort_index()
+        archetype_counts = self.archetype_counts
         self._ranges = {}
         for comp, pw2 in self._component_powers.items():
             relevant_archetypes = archetype_counts[(archetype_counts.index & pw2) > 0]
@@ -74,6 +75,12 @@ class ArchetypeStore:
                 },
                 index=relevant_archetypes.index
             )
+    @property
+    def archetype_counts(self):
+        if self._ranges is None:
+            self._atcounts = self.series.value_counts().sort_index()
+        return self._atcounts
+
 
     def remove_entities(self, eids):
         if np.isscalar(eids):
@@ -94,3 +101,27 @@ class ArchetypeStore:
         # Entities that don't have the component are silently skipped (&= is a no-op on zero bits).
         self.series.values[self._positions(eids)] &= ~powerof2
         self._update_ranges()
+
+    def choose_archetypes(self, filt):
+        """Select archetype numbers corresponding to filter.
+
+        Return the archetype ids corresponding to a given filter.
+        This excludes archetypes not present in the data.
+
+        Arguments:
+           filt: list of components or component negations
+        Returns
+          np.array of archetype ids
+        """
+        archetypes = self.archetype_counts.index.values
+        for comp in filt:
+            if isinstance(comp, Exclude):
+                pw2 = self._component_powers.get(comp.component, None)
+
+                archetypes = archetypes[(archetypes & pw2) == 0]
+                continue
+            pw2 = self._component_powers.get(comp, None)
+            if pw2 is None:
+                return np.array([])
+            archetypes = archetypes[(archetypes & pw2) != 0]
+        return archetypes
