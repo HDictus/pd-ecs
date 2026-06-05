@@ -348,6 +348,18 @@ def test_world_take_component_partially_not_present_is_noop():
     )
 
 
+def test_entity_view_empty_column_access():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1, 2, 3]})
+    view = world[[comp1, comp2]]
+    assert len(view) == 0
+    result = view[comp1]
+    assert isinstance(result, pd.Series)
+    assert len(result) == 0
+
+
 def test_entity_view_multi_column_getitem_returns_dataframe():
     comp1 = Component('a')
     comp2 = Component('b')

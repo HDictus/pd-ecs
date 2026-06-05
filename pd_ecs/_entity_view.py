@@ -31,6 +31,8 @@ class EntityView:
         if isinstance(key, list):
             return pd.DataFrame({comp: self[comp] for comp in key}, index=self.index)
         chunks = self._slices[key]
+        if not chunks:
+            return pd.Series([], index=self.index, name=key, dtype=float)
         if len(chunks) == 1:
             backing, start, stop = chunks[0]
             data = backing[start:stop]          # numpy view, no copy
