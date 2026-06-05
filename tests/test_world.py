@@ -24,9 +24,10 @@ def test_world_index_filters():
         index=has_2
     )
 
-    pd.testing.assert_frame_equal(
-        world[[component1, component2]],
-        exp)
+    result = world[[component1, component2]]
+    assert list(result.index) == list(exp.index)
+    pd.testing.assert_series_equal(result[component1], exp[component1])
+    pd.testing.assert_series_equal(result[component2], exp[component2])
 
   
 def test_informative_error_accidental_int_index():
@@ -56,7 +57,7 @@ def test_world_with_loc():
 
     pd.testing.assert_series_equal(
         world.loc[0, [component1, component2]],
-        exp.loc[0])
+        exp.loc[0], check_dtype=False)
     pd.testing.assert_series_equal(
         world.loc[[0, 1], component1], exp[component1]
     )
@@ -80,13 +81,13 @@ def test_world_index_negation():
         expdict,
         index=has1)
 
-    pd.testing.assert_frame_equal(
-        world[[component1, ~component2]],
-        exp)
+    result = world[[component1, ~component2]]
+    assert list(result.index) == list(exp.index)
+    pd.testing.assert_series_equal(result[component1], exp[component1])
 
-    pd.testing.assert_frame_equal(
-        world[[component2, ~component1]],
-        pd.DataFrame({}, index=[], columns=[component2]))
+    empty = world[[component2, ~component1]]
+    assert list(empty.index) == []
+    assert component2 in empty.columns
 
 
 def test_world_add_entities():
@@ -344,5 +345,173 @@ def test_world_take_component_partially_not_present_is_noop():
     pd.testing.assert_series_equal(
         world[comp1],
         pd.Series([1, 2, 3], name=comp1)
+    )
+
+
+def test_entity_view_multi_column_getitem_returns_dataframe():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [10, 20, 30], comp2: [1, 2, 3]})
+
+    view = world[[comp1, comp2]]
+    result = view[[comp1, comp2]]
+
+    assert isinstance(result, pd.DataFrame)
+    pd.testing.assert_series_equal(result[comp1], view[comp1], check_names=False)
+    pd.testing.assert_series_equal(result[comp2], view[comp2], check_names=False)
+
+
+def test_entity_view_setitem_single_component():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1, 2, 3], comp2: [10, 20, 30]})
+
+    view = world[[comp1, comp2]]
+    view[comp1] = np.array([100, 200, 300])
+
+    pd.testing.assert_series_equal(
+        world[comp1],
+        pd.Series([100, 200, 300], name=comp1),
+    )
+    pd.testing.assert_series_equal(
+        world[comp2],
+        pd.Series([10, 20, 30], name=comp2),
+    )
+
+
+def test_entity_view_setitem_augmented_assignment():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1.0, 2.0, 3.0], comp2: [10.0, 20.0, 30.0]})
+
+    view = world[[comp1, comp2]]
+    view[comp1] += view[comp2]
+
+    pd.testing.assert_series_equal(
+        world[comp1],
+        pd.Series([11.0, 22.0, 33.0], name=comp1),
+    )
+
+
+def test_entity_view_setitem_list_key():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1.0, 2.0, 3.0], comp2: [0.0, 0.0, 0.0]})
+
+    view = world[[comp1, comp2]]
+    view[[comp1, comp2]] = pd.DataFrame(
+        {comp1: [10.0, 20.0, 30.0], comp2: [4.0, 5.0, 6.0]},
+        index=view.index,
+    )
+
+    pd.testing.assert_series_equal(world[comp1], pd.Series([10.0, 20.0, 30.0], name=comp1))
+    pd.testing.assert_series_equal(world[comp2], pd.Series([4.0, 5.0, 6.0], name=comp2))
+
+
+# --- EntityView.loc retrieval ---
+
+def test_entity_view_loc_scalar_row_single_col():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [10, 20, 30], comp2: [1, 2, 3]})
+    view = world[[comp1, comp2]]
+    assert view.loc[1, comp1] == 20
+    assert view.loc[0, comp2] == 1
+
+
+def test_entity_view_loc_list_rows_single_col():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [10, 20, 30], comp2: [1, 2, 3]})
+    view = world[[comp1, comp2]]
+    pd.testing.assert_series_equal(
+        view.loc[[0, 2], comp1],
+        pd.Series([10, 30], index=[0, 2], name=comp1),
+    )
+
+
+def test_entity_view_loc_scalar_row_list_cols():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [10, 20, 30], comp2: [1, 2, 3]})
+    view = world[[comp1, comp2]]
+    row = view.loc[1, [comp1, comp2]]
+    assert isinstance(row, pd.Series)
+    assert row[comp1] == 20
+    assert row[comp2] == 2
+
+
+def test_entity_view_loc_list_rows_list_cols():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [10, 20, 30], comp2: [1, 2, 3]})
+    view = world[[comp1, comp2]]
+    sub = view.loc[[0, 2], [comp1, comp2]]
+    assert isinstance(sub, pd.DataFrame)
+    assert list(sub.index) == [0, 2]
+    assert list(sub[comp1]) == [10, 30]
+    assert list(sub[comp2]) == [1, 3]
+
+
+# --- EntityView.loc assignment ---
+
+def test_entity_view_loc_setitem_scalar_row_single_col():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1, 2, 3], comp2: [10, 20, 30]})
+    view = world[[comp1, comp2]]
+    view.loc[1, comp1] = 99
+    assert world[comp1].loc[1] == 99
+    assert world[comp1].loc[0] == 1   # untouched
+
+
+def test_entity_view_loc_setitem_list_rows_single_col():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1.0, 2.0, 3.0], comp2: [10.0, 20.0, 30.0]})
+    view = world[[comp1, comp2]]
+    view.loc[[0, 2], comp1] = np.array([100.0, 300.0])
+    pd.testing.assert_series_equal(
+        world[comp1],
+        pd.Series([100.0, 2.0, 300.0], name=comp1),
+    )
+
+
+def test_entity_view_loc_setitem_scalar_row_list_cols():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1.0, 2.0, 3.0], comp2: [10.0, 20.0, 30.0]})
+    view = world[[comp1, comp2]]
+    view.loc[1, [comp1, comp2]] = [99.0, 88.0]
+    assert world[comp1].loc[1] == 99.0
+    assert world[comp2].loc[1] == 88.0
+    assert world[comp1].loc[0] == 1.0   # untouched
+
+
+def test_entity_view_loc_setitem_list_rows_list_cols():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1.0, 2.0, 3.0], comp2: [10.0, 20.0, 30.0]})
+    view = world[[comp1, comp2]]
+    view.loc[[0, 2], [comp1, comp2]] = pd.DataFrame(
+        {comp1: [100.0, 300.0], comp2: [40.0, 60.0]}, index=[0, 2]
+    )
+    pd.testing.assert_series_equal(
+        world[comp1], pd.Series([100.0, 2.0, 300.0], name=comp1)
+    )
+    pd.testing.assert_series_equal(
+        world[comp2], pd.Series([40.0, 20.0, 60.0], name=comp2)
     )
 

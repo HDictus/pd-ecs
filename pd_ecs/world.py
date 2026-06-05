@@ -14,6 +14,7 @@ import pandas as pd
 from lazy import lazy
 
 from ._archetype_store import ArchetypeStore
+from ._entity_view import EntityView
 from ._filter_ops import Exclude
 from .component import Component
 from .data_abstraction import GETTERS, SETTERS
@@ -111,14 +112,31 @@ class World:
 
     def _get(self, key):
         if isinstance(key, list):
-            dfs = []
-            for k in key:
-                res = self._get(k)
-                if len(res.index) == 0:
-                    return pd.DataFrame(
-                        {}, index=[], columns=self._determine_columns(key))
-                dfs.append(res)
-            return pd.concat(dfs, join='inner', axis=1, copy=False)
+            includes = [k for k in key if not isinstance(k, Exclude)]
+            if not includes:
+                return EntityView(pd.Index([]), {})
+            for comp in includes:
+                if comp not in self._dict:
+                    self._initialize(comp)
+            relevant_archetypes = self._archs.choose_archetypes(key)
+            if len(relevant_archetypes) == 0:
+                return EntityView(pd.Index([]), {comp: [] for comp in includes})
+            index_parts = []
+            slices = {comp: [] for comp in includes}
+            for arch in relevant_archetypes:
+                ref_comp = includes[0]
+                r_ref = self._archs.ranges[ref_comp].loc[arch]
+                start_ref, stop_ref = int(r_ref['start']), int(r_ref['stop'])
+                index_parts.append(self._dict[ref_comp].index[start_ref:stop_ref])
+                for comp in includes:
+                    r = self._archs.ranges[comp].loc[arch]
+                    slices[comp].append(
+                        (self._dict[comp].values, int(r['start']), int(r['stop']))
+                    )
+            combined_index = pd.Index(
+                np.concatenate([p.to_numpy() for p in index_parts])
+            )
+            return EntityView(combined_index, slices)
 
         if isinstance(key, Exclude):
             idx = self.index.difference(self._get(key.component).index)
