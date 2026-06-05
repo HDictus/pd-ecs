@@ -9,6 +9,9 @@ class ArchetypeStore:
         self.series = pd.Series(dtype=dtype)
         self._component_powers = {}
         self._dtype = dtype
+        self._arch_counts = {}
+        # comp -> (archs, starts, stops): sorted int64 arrays, always current
+        self._ranges = {}
 
     def add_entities(self, eids):
         if np.isscalar(eids):
@@ -22,6 +25,8 @@ class ArchetypeStore:
             self.series,
             pd.Series(0, index=eids, dtype=self._dtype)
         ]).sort_index()
+        # arch 0 has no component bits; it never appears in _ranges
+        self._arch_counts[0] = self._arch_counts.get(0, 0) + len(eids)
 
     def _validate_eids(self, eids):
         if np.isscalar(eids):
@@ -36,51 +41,113 @@ class ArchetypeStore:
             raise KeyError(missing)
         return pos
 
-    def add_component(self, eids, component):
-        eids = self._validate_eids(eids)
-        if component in self._component_powers:
-            powerof2 = self._component_powers[component]
+    def _range_add(self, comp, arch, count):
+        """Add count entities to archetype arch in ranges for comp."""
+        if comp not in self._ranges:
+            self._ranges[comp] = (
+                np.array([], dtype=np.int64),
+                np.array([], dtype=np.int64),
+                np.array([], dtype=np.int64),
+            )
+        archs, starts, stops = self._ranges[comp]
+        pos = int(np.searchsorted(archs, arch))
+        if pos < len(archs) and archs[pos] == arch:
+            # Existing archetype: shift stop of this arch and start/stop of all following
+            stops[pos:] += count
+            starts[pos + 1:] += count
         else:
+            # New archetype: insert sorted, then shift everything after it
+            new_start = int(stops[pos - 1]) if pos > 0 else 0
+            new_archs = np.insert(archs, pos, arch)
+            new_starts = np.insert(starts, pos, new_start)
+            new_stops = np.insert(stops, pos, new_start + count)
+            new_starts[pos + 1:] += count
+            new_stops[pos + 1:] += count
+            self._ranges[comp] = (new_archs, new_starts, new_stops)
+
+    def _range_remove(self, comp, arch, count):
+        """Remove count entities from archetype arch in ranges for comp."""
+        archs, starts, stops = self._ranges[comp]
+        pos = int(np.searchsorted(archs, arch))
+        stops[pos:] -= count
+        starts[pos + 1:] -= count
+        if stops[pos] == starts[pos]:
+            self._ranges[comp] = (
+                np.delete(archs, pos),
+                np.delete(starts, pos),
+                np.delete(stops, pos),
+            )
+
+    def _range_lookup(self, comp, arch):
+        """Return (start, stop) for arch in comp's ranges."""
+        archs, starts, stops = self._ranges[comp]
+        pos = int(np.searchsorted(archs, arch))
+        return int(starts[pos]), int(stops[pos])
+
+    def _apply_arch_counts(self, old_values, new_values):
+        if len(old_values):
+            for arch, cnt in zip(*np.unique(old_values, return_counts=True)):
+                key = int(arch)
+                self._arch_counts[key] -= int(cnt)
+                if self._arch_counts[key] == 0:
+                    del self._arch_counts[key]
+        if len(new_values):
+            for arch, cnt in zip(*np.unique(new_values, return_counts=True)):
+                key = int(arch)
+                self._arch_counts[key] = self._arch_counts.get(key, 0) + int(cnt)
+
+    def _compute_transitions(self, old_values, new_values):
+        """Return {(old_arch, new_arch): count} for entities whose arch changed."""
+        changed = old_values != new_values
+        transitions = {}
+        for o, n in zip(old_values[changed].tolist(), new_values[changed].tolist()):
+            key = (int(o), int(n))
+            transitions[key] = transitions.get(key, 0) + 1
+        return transitions
+
+    def _ensure_power(self, component):
+        """Return the power-of-2 bitmask for component, registering it if needed."""
+        if component not in self._component_powers:
             next_bit = len(self._component_powers)
             if next_bit >= np.iinfo(self._dtype).bits:
                 raise OverflowError(
                     f"cannot add component {component!r}: "
                     f"dtype {self._dtype} only supports {np.iinfo(self._dtype).bits} components"
                 )
-            powerof2 = self._dtype(2 ** next_bit)
-            self._component_powers[component] = powerof2
-        positions = self._positions(eids)
-        self.series.values[positions] |= powerof2
-        self._update_ranges()
+            self._component_powers[component] = self._dtype(2 ** next_bit)
+        return self._component_powers[component]
 
-    def _update_ranges(self):
-        self._ranges = None
+    def add_component(self, eids, component):
+        eids = self._validate_eids(eids)
+        powerof2 = self._ensure_power(component)
+        positions = self._positions(eids)
+        old_values = self.series.values[positions].copy()
+        self.series.values[positions] |= powerof2
+        new_values = self.series.values[positions]
+        self._apply_arch_counts(old_values, new_values)
+        for (old_arch, new_arch), k in self._compute_transitions(old_values, new_values).items():
+            # component is new for these entities: add to new_arch only
+            self._range_add(component, new_arch, k)
+            # all other components already on these entities: transfer old_arch -> new_arch
+            for c, pw2_c in self._component_powers.items():
+                if c is not component and old_arch & pw2_c:
+                    self._range_remove(c, old_arch, k)
+                    self._range_add(c, new_arch, k)
 
     @property
     def ranges(self):
-        if self._ranges is None:
-            self._build_ranges()
-        return self._ranges
+        return {
+            comp: {int(a): (int(s), int(e)) for a, s, e in zip(*data)}
+            for comp, data in self._ranges.items()
+        }
 
-    def _build_ranges(self):
-        archetype_counts = self.archetype_counts
-        self._ranges = {}
-        for comp, pw2 in self._component_powers.items():
-            relevant_archetypes = archetype_counts[(archetype_counts.index & pw2) > 0]
-            cumsum = relevant_archetypes.cumsum()
-            self._ranges[comp] = pd.DataFrame(
-                {
-                    'start': np.concatenate([[0], cumsum.values[:-1]]),
-                    'stop': cumsum.values
-                },
-                index=relevant_archetypes.index
-            )
     @property
     def archetype_counts(self):
-        if self._ranges is None:
-            self._atcounts = self.series.value_counts().sort_index()
-        return self._atcounts
-
+        keys = np.array(sorted(self._arch_counts), dtype=self._dtype)
+        return pd.Series(
+            np.array([self._arch_counts[int(k)] for k in keys], dtype=np.intp),
+            index=pd.Index(keys, dtype=self._dtype)
+        )
 
     def remove_entities(self, eids):
         if np.isscalar(eids):
@@ -90,17 +157,35 @@ class ArchetypeStore:
         missing = pd.Index(eids).difference(self.series.index)
         if len(missing):
             raise KeyError(f"entities do not exist: {list(missing)}")
+        old_values = self.series.loc[eids].values
         self.series = self.series.drop(index=eids)
-        self._update_ranges()
+        self._apply_arch_counts(old_values, np.array([], dtype=self._dtype))
+        if len(old_values):
+            for arch, cnt in zip(*np.unique(old_values, return_counts=True)):
+                arch_int, cnt_int = int(arch), int(cnt)
+                for c, pw2_c in self._component_powers.items():
+                    if arch_int & pw2_c:
+                        self._range_remove(c, arch_int, cnt_int)
 
     def remove_component(self, eids, component):
         eids = self._validate_eids(eids)
         if component not in self._component_powers:
             raise KeyError(component)
         powerof2 = self._component_powers[component]
+        positions = self._positions(eids)
+        old_values = self.series.values[positions].copy()
         # Entities that don't have the component are silently skipped (&= is a no-op on zero bits).
-        self.series.values[self._positions(eids)] &= ~powerof2
-        self._update_ranges()
+        self.series.values[positions] &= ~powerof2
+        new_values = self.series.values[positions]
+        self._apply_arch_counts(old_values, new_values)
+        for (old_arch, new_arch), k in self._compute_transitions(old_values, new_values).items():
+            # component is being removed: drop from old_arch only
+            self._range_remove(component, old_arch, k)
+            # all other components on these entities: transfer old_arch -> new_arch
+            for c, pw2_c in self._component_powers.items():
+                if c is not component and old_arch & pw2_c:
+                    self._range_remove(c, old_arch, k)
+                    self._range_add(c, new_arch, k)
 
     def choose_archetypes(self, filt):
         """Select archetype numbers corresponding to filter.
@@ -113,15 +198,12 @@ class ArchetypeStore:
         Returns
           np.array of archetype ids
         """
-        archetypes = self.archetype_counts.index.values
+        archetypes = np.array(sorted(self._arch_counts), dtype=self._dtype)
         for comp in filt:
             if isinstance(comp, Exclude):
-                pw2 = self._component_powers.get(comp.component, None)
-
+                pw2 = self._ensure_power(comp.component)
                 archetypes = archetypes[(archetypes & pw2) == 0]
                 continue
-            pw2 = self._component_powers.get(comp, None)
-            if pw2 is None:
-                return np.array([])
+            pw2 = self._ensure_power(comp)
             archetypes = archetypes[(archetypes & pw2) != 0]
         return archetypes

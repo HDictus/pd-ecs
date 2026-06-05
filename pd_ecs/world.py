@@ -124,15 +124,13 @@ class World:
             index_parts = []
             slices = {comp: [] for comp in includes}
             for arch in relevant_archetypes:
+                arch_int = int(arch)
                 ref_comp = includes[0]
-                r_ref = self._archs.ranges[ref_comp].loc[arch]
-                start_ref, stop_ref = int(r_ref['start']), int(r_ref['stop'])
+                start_ref, stop_ref = self._archs._range_lookup(ref_comp, arch_int)
                 index_parts.append(self._dict[ref_comp].index[start_ref:stop_ref])
                 for comp in includes:
-                    r = self._archs.ranges[comp].loc[arch]
-                    slices[comp].append(
-                        (self._dict[comp].values, int(r['start']), int(r['stop']))
-                    )
+                    start, stop = self._archs._range_lookup(comp, arch_int)
+                    slices[comp].append((self._dict[comp].values, start, stop))
             combined_index = pd.Index(
                 np.concatenate([p.to_numpy() for p in index_parts])
             )
