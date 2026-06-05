@@ -30,6 +30,9 @@ class EntityView:
     def __getitem__(self, key):
         if isinstance(key, list):
             return pd.DataFrame({comp: self[comp] for comp in key}, index=self.index)
+        if isinstance(key, (pd.Series, np.ndarray)) and pd.api.types.is_bool_dtype(key):
+            df = pd.DataFrame({comp: self[comp] for comp in self._slices}, index=self.index)
+            return df[key]
         chunks = self._slices[key]
         if not chunks:
             return pd.Series([], index=self.index, name=key, dtype=float)
@@ -52,6 +55,16 @@ class EntityView:
             n = stop - start
             backing[start:stop] = flat[pos:pos + n]
             pos += n
+
+    def to_frame(self):
+        """Materialize all columns as a DataFrame."""
+        return pd.DataFrame({comp: self[comp] for comp in self._slices}, index=self.index)
+
+    def __getattr__(self, name):
+        # Only reached when normal lookup fails; guard against pre-init access.
+        if '_slices' not in self.__dict__:
+            raise AttributeError(name)
+        return getattr(self.to_frame(), name)
 
     def _backing_positions(self, comp):
         """Array mapping each view position -> position in comp's backing array."""

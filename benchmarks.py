@@ -169,24 +169,6 @@ def bm_update(n_entities, components):
     return setup, run
 
 
-def bm_build_ranges(n_entities, components):
-    """Rebuild archetype ranges from scratch (ArchetypeStore._build_ranges)."""
-    eids = list(range(n_entities))
-
-    def setup():
-        archs = ArchetypeStore()
-        archs.add_entities(eids)
-        for comp in components:
-            archs.add_component(eids, comp)
-        return archs
-
-    def run(archs):
-        archs._update_ranges()   # invalidate cached ranges
-        _ = archs.ranges         # trigger rebuild
-
-    return setup, run
-
-
 def bm_archstore_add_entities(n_entities, components):
     """Low-level ArchetypeStore.add_entities — bulk entity registration."""
     eids = list(range(n_entities))
@@ -229,7 +211,6 @@ BENCHMARKS = {
     "query_multi": bm_query_multi,
     "query_filter": bm_query_filter,
     "update": bm_update,
-    "build_ranges": bm_build_ranges,
     "archstore_add_entities": bm_archstore_add_entities,
     "choose_archetypes": bm_choose_archetypes,
 }
@@ -326,7 +307,7 @@ def plot_results(results):
         ax.set_visible(False)
 
     fig.suptitle("pd-ecs operation scaling", fontsize=13, y=1.01)
-    plt.tight_layout()
+    # plt.tight_layout()
     out = os.path.join(PROFILES_DIR, "scaling.png")
     plt.savefig(out, dpi=150, bbox_inches="tight")
     print(f"\nSaved {out}")

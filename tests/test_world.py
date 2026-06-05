@@ -348,6 +348,32 @@ def test_world_take_component_partially_not_present_is_noop():
     )
 
 
+def test_entity_view_boolean_indexing():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1.0, 2.0, 3.0], comp2: [10.0, 20.0, 30.0]})
+    view = world[[comp1, comp2]]
+
+    result = view[view[comp1] > 1.0]
+
+    assert isinstance(result, pd.DataFrame)
+    assert list(result.index) == [1, 2]
+    assert list(result[comp1]) == [2.0, 3.0]
+    assert list(result[comp2]) == [20.0, 30.0]
+
+
+def test_entity_view_boolean_indexing_numpy():
+    comp1 = Component('a')
+    world = World()
+    world.add_entities({comp1: [10.0, 20.0, 30.0]})
+    view = world[[comp1]]
+    mask = np.array([True, False, True])
+    result = view[mask]
+    assert isinstance(result, pd.DataFrame)
+    assert list(result[comp1]) == [10.0, 30.0]
+
+
 def test_entity_view_empty_column_access():
     comp1 = Component('a')
     comp2 = Component('b')
@@ -358,6 +384,33 @@ def test_entity_view_empty_column_access():
     result = view[comp1]
     assert isinstance(result, pd.Series)
     assert len(result) == 0
+
+
+def test_entity_view_dataframe_delegation():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1.0, 2.0, 3.0], comp2: [10.0, 20.0, 30.0]})
+    view = world[[comp1, comp2]]
+
+    # property: .values
+    assert isinstance(view.values, np.ndarray)
+    assert view.values.shape == (3, 2)
+
+    # reduction methods
+    assert view.min()[comp1] == 1.0
+    assert view.max()[comp2] == 30.0
+    assert view.sum()[comp1] == 6.0
+
+    # .iterrows yields (index, Series) pairs
+    rows = list(view.iterrows())
+    assert len(rows) == 3
+    assert rows[0][1][comp1] == 1.0
+
+    # explicit to_frame()
+    df = view.to_frame()
+    assert isinstance(df, pd.DataFrame)
+    assert list(df.columns) == [comp1, comp2]
 
 
 def test_entity_view_multi_column_getitem_returns_dataframe():

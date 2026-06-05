@@ -112,6 +112,22 @@ class World:
 
     def _get(self, key):
         if isinstance(key, list):
+            # Virtual components (@gets) aren't in the archetype system; fall back
+            # to the concat approach so their getters are called correctly.
+            if any(
+                (isinstance(k, Exclude) and k.component in GETTERS) or
+                (not isinstance(k, Exclude) and k in GETTERS)
+                for k in key
+            ):
+                dfs = []
+                for k in key:
+                    res = self._get(k)
+                    if len(res.index) == 0:
+                        return pd.DataFrame(
+                            {}, index=[], columns=self._determine_columns(key))
+                    dfs.append(res)
+                return pd.concat(dfs, join='inner', axis=1, copy=False)
+
             includes = [k for k in key if not isinstance(k, Exclude)]
             if not includes:
                 return EntityView(pd.Index([]), {})
