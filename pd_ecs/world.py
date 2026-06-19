@@ -14,6 +14,7 @@ import pandas as pd
 from lazy import lazy
 
 from ._archetype_store import ArchetypeStore
+from ._component_storage import ComponentStorage
 from ._entity_view import EntityView
 from ._filter_ops import Exclude
 from .component import Component
@@ -81,12 +82,19 @@ class World:
     It is defined as consisting of a certain set of component types.
     """
 
-    def __init__(self):
-        """Create a world."""
+    def __init__(self, chunk_size=100):
+        """Create a world.
+
+        Arguments:
+            chunk_size: number of entity slots per storage chunk.  Only the
+                last chunk of each component array is reallocated when new
+                entities are added; earlier chunks are never touched.
+        """
         self._dict: dict = {}
         self._archs = ArchetypeStore()
         self.maxind = 0
         self._index = None
+        self._chunk_size = int(chunk_size)
 
     @property
     def index(self):
@@ -97,14 +105,14 @@ class World:
         return self._index
 
     def _sort(self, comp):
-        """Re-sort a component's series by archetype bitmask then entity id."""
-        series = self._dict[comp]
-        if len(series) == 0:
+        """Re-sort a component's storage by archetype bitmask then entity id."""
+        storage = self._dict[comp]
+        if storage._length == 0:
             return
-        masks = self._archs.series.reindex(series.index, fill_value=0)
-        order = np.lexsort((series.index.to_numpy(), masks.to_numpy()))
-        self._dict[comp] = series.iloc[order]
-        self._dict[comp].name = comp
+        eids = storage.all_eids()
+        masks = self._archs.series.reindex(pd.Index(eids), fill_value=0)
+        order = np.lexsort((eids, masks.to_numpy()))
+        storage.reorder_inplace(order)
 
     def __getitem__(self, key):
         """Get data for components."""
@@ -143,13 +151,11 @@ class World:
                 arch_int = int(arch)
                 ref_comp = includes[0]
                 start_ref, stop_ref = self._archs._range_lookup(ref_comp, arch_int)
-                index_parts.append(self._dict[ref_comp].index[start_ref:stop_ref])
+                index_parts.append(self._dict[ref_comp].get_index_range(start_ref, stop_ref))
                 for comp in includes:
                     start, stop = self._archs._range_lookup(comp, arch_int)
-                    slices[comp].append((self._dict[comp].values, start, stop))
-            combined_index = pd.Index(
-                np.concatenate([p.to_numpy() for p in index_parts])
-            )
+                    slices[comp].extend(self._dict[comp].get_slice_specs(start, stop))
+            combined_index = pd.Index(np.concatenate(index_parts))
             return EntityView(combined_index, slices)
 
         if isinstance(key, Exclude):
@@ -161,13 +167,17 @@ class World:
         if isinstance(key, Component):
             if key in GETTERS:
                 return GETTERS[key](self)
-            return self._dict[key]
+            return self._dict[key].to_series()
 
         raise ComponentError("Not a valid Component:", key)
 
     def _initialize(self, key):
         if isinstance(key, Component):
-            self._dict[key] = key.init_series()
+            self._dict[key] = ComponentStorage(
+                dtype=key.dtype,
+                chunk_size=self._chunk_size,
+                name=key,
+            )
 
     @lazy
     def loc(self):
@@ -175,8 +185,12 @@ class World:
         return LocIndexer(self)
 
     def _initialize_state(self, components: Iterable):
-        for component in components:
-            self._dict[component] = component.init_series()
+        for comp in components:
+            self._dict[comp] = ComponentStorage(
+                dtype=comp.dtype,
+                chunk_size=self._chunk_size,
+                name=comp,
+            )
 
     def _determine_columns(self, keys):
         return [key for key in keys if not isinstance(key, Exclude)]
@@ -225,24 +239,28 @@ class World:
         frames = _component_series(component_values, indices)
         comps = list(frames.keys())
         # Fast path: when all components are fresh (no prior data), every component
-        # series will have the same index (= indices), so we compute the sort order once.
+        # storage has the same index (= indices), so we compute the sort order once.
         all_fresh = len(indices) > 0 and all(
-            comp not in self._dict or len(self._dict[comp]) == 0
+            comp not in self._dict or self._dict[comp]._length == 0
             for comp in comps
         )
         if all_fresh:
             for comp in comps:
                 _validate_component(comp)
-                self._dict[comp] = frames[comp]
-                self._dict[comp].name = comp
+                if comp not in self._dict:
+                    self._dict[comp] = ComponentStorage(
+                        dtype=comp.dtype,
+                        chunk_size=self._chunk_size,
+                        name=comp,
+                    )
+                self._dict[comp].append(indices, frames[comp].values)
             if comps:
-                sample = self._dict[comps[0]]
-                masks = self._archs.series.reindex(sample.index, fill_value=0)
-                order = np.lexsort((sample.index.to_numpy(), masks.to_numpy()))
+                ref = self._dict[comps[0]]
+                eids = ref.all_eids()
+                masks = self._archs.series.reindex(pd.Index(eids), fill_value=0)
+                order = np.lexsort((eids, masks.to_numpy()))
                 for comp in comps:
-                    s = self._dict[comp]
-                    self._dict[comp] = s.iloc[order]
-                    self._dict[comp].name = comp
+                    self._dict[comp].reorder_inplace(order)
         else:
             for comp, series in frames.items():
                 self._add_component(comp, series, indices)
@@ -252,13 +270,17 @@ class World:
 
     def _add_component(self, comp, series, indices):
         _validate_component(comp)
-        prev = self[comp]
-        new_comp = pd.concat([
-            prev,
-            pd.Series(series, index=indices)])
-        new_comp.name = prev.name
-        new_comp = new_comp[~new_comp.index.duplicated(keep="last")]
-        self._dict[comp] = new_comp
+        if comp not in self._dict:
+            self._initialize(comp)
+        storage = self._dict[comp]
+        eids = np.asarray(indices, dtype=np.int64)
+        raw = series.values if hasattr(series, 'values') else series
+        # Remove existing entries for these eids so new values win (keep-last semantics).
+        existing = np.isin(storage.all_eids(), eids)
+        if existing.any():
+            self._dict[comp] = storage.delete_mask(existing)
+            storage = self._dict[comp]
+        storage.append(eids, raw)
         self._sort(comp)
 
     def give(self, ids, components):
@@ -276,15 +298,23 @@ class World:
     def take(self, ids, *components):
         """Remove given components from entities corresponding to ids."""
         ids = np.asarray([ids]) if np.isscalar(ids) else np.asarray(ids)
+        taken_set = set(components)
         for component in components:
             if component in self._dict:
-                self._dict[component].drop(ids, inplace=True, errors='ignore')
+                self._dict[component] = self._dict[component].delete_eids(ids)
             if component in self._archs._component_powers:
                 self._archs.remove_component(ids, component)
-        ids_set = set(ids.tolist())
-        for comp, series in self._dict.items():
-            if ids_set.intersection(series.index):
-                self._sort(comp)
+        # Re-sort only components that the affected entities still possess.
+        # Read their current bitmasks from the archetype store (already updated
+        # above) instead of scanning every component storage with np.isin.
+        if len(ids) and self._archs._component_powers:
+            pos = self._archs.series.index.get_indexer(ids)
+            valid = pos[pos >= 0]
+            if len(valid):
+                affected_bits = int(np.bitwise_or.reduce(self._archs.series.values[valid]))
+                for comp, pw2 in self._archs._component_powers.items():
+                    if comp not in taken_set and comp in self._dict and (affected_bits & int(pw2)):
+                        self._sort(comp)
 
     def remove_entities(self, ids):
         """
@@ -295,13 +325,10 @@ class World:
                 corresponding to these entities in the component dataframes.
         """
         ids = np.asarray([ids]) if np.isscalar(ids) else np.asarray(ids)
-        # Build set once; use isin (hash lookup) instead of intersect1d (sort) per component
-        ids_set = set(ids.tolist())
-        for comp, data in list(self._dict.items()):
-            mask = data.index.isin(ids_set)
+        for comp, storage in list(self._dict.items()):
+            mask = np.isin(storage.all_eids(), ids)
             if mask.any():
-                self._dict[comp] = data.iloc[~mask]
-                self._dict[comp].name = comp
+                self._dict[comp] = storage.delete_mask(mask)
         existing = ids[np.isin(ids, self._archs.series.index.to_numpy())]
         if len(existing):
             self._archs.remove_entities(existing)

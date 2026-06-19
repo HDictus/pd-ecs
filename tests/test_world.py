@@ -348,6 +348,19 @@ def test_world_take_component_partially_not_present_is_noop():
     )
 
 
+def test_loc_set_empty_index():
+    # Assigning to an empty index should be a no-op, not raise IndexError.
+    comp1 = Component('a')
+    world = World()
+    world.add_entities({comp1: [10, 20, 30]})
+    empty = pd.Series([], dtype=float)
+    world.loc[empty.index, comp1] = empty  # must not raise
+    pd.testing.assert_series_equal(
+        world[comp1],
+        pd.Series([10, 20, 30], name=comp1),
+    )
+
+
 def test_entity_view_boolean_indexing():
     comp1 = Component('a')
     comp2 = Component('b')

@@ -2,6 +2,36 @@ import numpy as np
 import pandas as pd
 
 
+def _write_to_chunks(slices, pos_in_view, values):
+    """Write values at view-relative positions into chunk backing arrays.
+
+    slices:       list of (chunk_array, chunk_start, chunk_stop)
+    pos_in_view:  int array of positions within the view
+    values:       scalar or 1-D array aligned with pos_in_view
+    """
+    if not slices:
+        return
+    pos = np.asarray(pos_in_view, dtype=np.intp)
+    slice_lens = np.array([e - s for _, s, e in slices], dtype=np.intp)
+    view_starts = np.empty(len(slices), dtype=np.intp)
+    view_starts[0] = 0
+    if len(slices) > 1:
+        view_starts[1:] = np.cumsum(slice_lens[:-1])
+
+    si_per = np.searchsorted(view_starts, pos, side='right') - 1
+    vals = np.asarray(values)
+
+    for si, (chunk_arr, chunk_start, _) in enumerate(slices):
+        mask = si_per == si
+        if not mask.any():
+            continue
+        offs = pos[mask] - view_starts[si]
+        if vals.ndim == 0:
+            chunk_arr[chunk_start + offs] = vals
+        else:
+            chunk_arr[chunk_start + offs] = vals[mask]
+
+
 class EntityView:
     """
     Lazy view over entities matching a multi-component filter.
@@ -66,16 +96,6 @@ class EntityView:
             raise AttributeError(name)
         return getattr(self.to_frame(), name)
 
-    def _backing_positions(self, comp):
-        """Array mapping each view position -> position in comp's backing array."""
-        result = np.empty(len(self.index), dtype=np.intp)
-        offset = 0
-        for _, start, stop in self._slices[comp]:
-            n = stop - start
-            result[offset:offset + n] = np.arange(start, stop)
-            offset += n
-        return result
-
     @property
     def loc(self):
         return _EntityViewLoc(self)
@@ -116,22 +136,21 @@ class _EntityViewLoc:
         cols = col_key if isinstance(col_key, list) else [col_key]
 
         if pd.api.types.is_scalar(row_key):
-            pos_in_view = np.array([self._view.index.get_loc(row_key)])
+            pos_in_view = np.array([self._view.index.get_loc(row_key)], dtype=np.intp)
         else:
-            pos_in_view = self._view.index.get_indexer(row_key)
+            pos_in_view = np.asarray(self._view.index.get_indexer(row_key), dtype=np.intp)
 
         for i, comp in enumerate(cols):
-            target = self._view._backing_positions(comp)[pos_in_view]
-            backing = self._view._slices[comp][0][0]
             if isinstance(values, pd.DataFrame):
-                backing[target] = values[comp].to_numpy()
+                vals = values[comp].to_numpy()
             elif len(cols) == 1:
                 flat = np.asarray(
                     values.to_numpy() if isinstance(values, pd.Series) else values
                 )
-                backing[target] = flat.ravel() if flat.ndim > 1 else flat
+                vals = flat.ravel() if flat.ndim > 1 else flat
             else:
                 flat = np.asarray(
                     values.to_numpy() if isinstance(values, pd.Series) else values
                 )
-                backing[target] = flat[i] if pd.api.types.is_scalar(row_key) else flat[:, i]
+                vals = flat[i] if pd.api.types.is_scalar(row_key) else flat[:, i]
+            _write_to_chunks(self._view._slices[comp], pos_in_view, vals)
