@@ -217,8 +217,8 @@ class World:
         """
         component_values = pd.DataFrame(component_values)
         num_entities = len(component_values)
-        indices = list(range(self.maxind, self.maxind + num_entities))
-        if indices:
+        indices = np.arange(self.maxind, self.maxind + num_entities)
+        if len(indices):
             self._archs.add_entities(indices)
             for comp in component_values.columns:
                 self._archs.add_component(indices, comp)
@@ -227,7 +227,7 @@ class World:
             self._add_component(comp, series, indices)
         self.maxind += num_entities
         self._index = None
-        return indices
+        return indices.tolist()
 
     def _add_component(self, comp, series, indices):
         _validate_component(comp)
@@ -242,10 +242,9 @@ class World:
 
     def give(self, ids, components):
         """Add given components to entities corresponding to ids."""
-        if np.isscalar(ids):
-            ids = [ids]
-        new_eids = list(pd.Index(ids).difference(self._archs.series.index))
-        if new_eids:
+        ids = np.asarray([ids]) if np.isscalar(ids) else np.asarray(ids)
+        new_eids = np.setdiff1d(ids, self._archs.series.index.to_numpy(), assume_unique=True)
+        if len(new_eids):
             self._archs.add_entities(new_eids)
         for comp in components:
             self._archs.add_component(ids, comp)
@@ -255,13 +254,13 @@ class World:
 
     def take(self, ids, *components):
         """Remove given components from entities corresponding to ids."""
-        ids_list = [ids] if np.isscalar(ids) else list(ids)
+        ids = np.asarray([ids]) if np.isscalar(ids) else np.asarray(ids)
         for component in components:
             if component in self._dict:
-                self._dict[component].drop(ids_list, inplace=True, errors='ignore')
+                self._dict[component].drop(ids, inplace=True, errors='ignore')
             if component in self._archs._component_powers:
-                self._archs.remove_component(ids_list, component)
-        ids_set = set(ids_list)
+                self._archs.remove_component(ids, component)
+        ids_set = set(ids.tolist())
         for comp, series in self._dict.items():
             if ids_set.intersection(series.index):
                 self._sort(comp)
@@ -274,13 +273,12 @@ class World:
             ids: the entity ids, corresponding to the indices of rows
                 corresponding to these entities in the component dataframes.
         """
-        if np.isscalar(ids):
-            ids = [ids]
+        ids = np.asarray([ids]) if np.isscalar(ids) else np.asarray(ids)
         for _, data in self._dict.items():
-            ids_in = np.intersect1d(ids, data.index)
+            ids_in = np.intersect1d(ids, data.index, assume_unique=True)
             data.drop(ids_in, inplace=True)
-        existing = list(pd.Index(ids).intersection(self._archs.series.index))
-        if existing:
+        existing = np.intersect1d(ids, self._archs.series.index.to_numpy(), assume_unique=True)
+        if len(existing):
             self._archs.remove_entities(existing)
         self._index = None
 

@@ -14,8 +14,7 @@ class ArchetypeStore:
         self._ranges = {}
 
     def add_entities(self, eids):
-        if np.isscalar(eids):
-            eids = [eids]
+        eids = np.asarray([eids]) if np.isscalar(eids) else np.asarray(eids)
         if len(np.unique(eids)) < len(eids):
             raise ValueError(f"duplicate eids in input")
         overlap = self.series.index.intersection(eids)
@@ -29,16 +28,14 @@ class ArchetypeStore:
         self._arch_counts[0] = self._arch_counts.get(0, 0) + len(eids)
 
     def _validate_eids(self, eids):
-        if np.isscalar(eids):
-            eids = [eids]
-        return eids
+        return np.asarray([eids]) if np.isscalar(eids) else np.asarray(eids)
 
     def _positions(self, eids):
         """Return positional indices for eids, raising KeyError for any missing."""
         pos = self.series.index.get_indexer(eids)
-        missing = [e for e, p in zip(eids, pos) if p < 0]
-        if missing:
-            raise KeyError(missing)
+        missing = eids[pos < 0]
+        if len(missing):
+            raise KeyError(missing.tolist())
         return pos
 
     def _range_add(self, comp, arch, count):
@@ -150,13 +147,12 @@ class ArchetypeStore:
         )
 
     def remove_entities(self, eids):
-        if np.isscalar(eids):
-            eids = [eids]
+        eids = np.asarray([eids]) if np.isscalar(eids) else np.asarray(eids)
         if len(np.unique(eids)) < len(eids):
             raise ValueError(f"duplicate eids in input")
-        missing = pd.Index(eids).difference(self.series.index)
+        missing = np.setdiff1d(eids, self.series.index.to_numpy(), assume_unique=True)
         if len(missing):
-            raise KeyError(f"entities do not exist: {list(missing)}")
+            raise KeyError(f"entities do not exist: {missing.tolist()}")
         old_values = self.series.loc[eids].values
         self.series = self.series.drop(index=eids)
         self._apply_arch_counts(old_values, np.array([], dtype=self._dtype))
