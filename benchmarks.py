@@ -3,15 +3,16 @@
 Benchmark suite for pd-ecs core operations.
 
 For each operation × n_entities × n_components combination:
-  - Profiles the isolated operation with cProfile → profiles/<op>_<Ne>e_<Nc>c.prof
+  - Profiles the isolated operation with cProfile → profiles_<hash>/<op>_<Ne>e_<Nc>c.prof
   - Times the operation over several repeats for the scaling plot
 
 Outputs:
-  profiles/scaling.png  — log-log scaling curves per operation
+  profiles_<hash>/scaling.png  — log-log scaling curves per operation
 """
 
 import cProfile
 import os
+import subprocess
 import time
 
 import matplotlib.pyplot as plt
@@ -21,7 +22,16 @@ import pandas as pd
 from pd_ecs import Component, World
 from pd_ecs._archetype_store import ArchetypeStore
 
-PROFILES_DIR = "profiles"
+def _git_hash():
+    try:
+        return subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+    except Exception:
+        return "unknown"
+
+PROFILES_DIR = f"profiles_{_git_hash()}"
 N_ENTITIES_VALS = [100, 1_000, 10_000, 100_000]
 N_COMPONENTS_VALS = [2, 4, 8, 16]
 N_TIMING_REPEATS = 5

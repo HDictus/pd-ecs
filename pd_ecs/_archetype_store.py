@@ -99,11 +99,11 @@ class ArchetypeStore:
     def _compute_transitions(self, old_values, new_values):
         """Return {(old_arch, new_arch): count} for entities whose arch changed."""
         changed = old_values != new_values
-        transitions = {}
-        for o, n in zip(old_values[changed].tolist(), new_values[changed].tolist()):
-            key = (int(o), int(n))
-            transitions[key] = transitions.get(key, 0) + 1
-        return transitions
+        if not np.any(changed):
+            return {}
+        pairs = np.stack([old_values[changed], new_values[changed]], axis=1)
+        unique_pairs, counts = np.unique(pairs, axis=0, return_counts=True)
+        return {(int(o), int(n)): int(cnt) for (o, n), cnt in zip(unique_pairs, counts)}
 
     def _ensure_power(self, component):
         """Return the power-of-2 bitmask for component, registering it if needed."""
