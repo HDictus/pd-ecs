@@ -20,10 +20,15 @@ class ArchetypeStore:
         overlap = self.series.index.intersection(eids)
         if len(overlap):
             raise ValueError(f"entities already exist: {overlap}")
-        self.series = pd.concat([
-            self.series,
-            pd.Series(0, index=eids, dtype=self._dtype)
-        ]).sort_index()
+        new_series = pd.Series(0, index=eids, dtype=self._dtype)
+        # Skip sort when new eids are already ordered and all follow existing ones.
+        # World.add_entities always passes np.arange(maxind, ...) which satisfies this.
+        if len(self.series) == 0 or (
+            np.all(np.diff(eids) >= 0) and eids[0] > self.series.index[-1]
+        ):
+            self.series = pd.concat([self.series, new_series])
+        else:
+            self.series = pd.concat([self.series, new_series]).sort_index()
         # arch 0 has no component bits; it never appears in _ranges
         self._arch_counts[0] = self._arch_counts.get(0, 0) + len(eids)
 
@@ -81,26 +86,19 @@ class ArchetypeStore:
         pos = int(np.searchsorted(archs, arch))
         return int(starts[pos]), int(stops[pos])
 
-    def _apply_arch_counts(self, old_values, new_values):
-        if len(old_values):
-            for arch, cnt in zip(*np.unique(old_values, return_counts=True)):
-                key = int(arch)
-                self._arch_counts[key] -= int(cnt)
-                if self._arch_counts[key] == 0:
-                    del self._arch_counts[key]
-        if len(new_values):
-            for arch, cnt in zip(*np.unique(new_values, return_counts=True)):
-                key = int(arch)
-                self._arch_counts[key] = self._arch_counts.get(key, 0) + int(cnt)
-
     def _compute_transitions(self, old_values, new_values):
         """Return {(old_arch, new_arch): count} for entities whose arch changed."""
         changed = old_values != new_values
         if not np.any(changed):
             return {}
-        pairs = np.stack([old_values[changed], new_values[changed]], axis=1)
+        o, n = old_values[changed], new_values[changed]
+        # Fast path: single archetype transition (all entities share the same old arch).
+        # This is the common case in bulk add_component / remove_component calls.
+        if o.min() == o.max():
+            return {(int(o[0]), int(n[0])): len(o)}
+        pairs = np.stack([o, n], axis=1)
         unique_pairs, counts = np.unique(pairs, axis=0, return_counts=True)
-        return {(int(o), int(n)): int(cnt) for (o, n), cnt in zip(unique_pairs, counts)}
+        return {(int(a), int(b)): int(c) for (a, b), c in zip(unique_pairs, counts)}
 
     def _ensure_power(self, component):
         """Return the power-of-2 bitmask for component, registering it if needed."""
@@ -121,8 +119,13 @@ class ArchetypeStore:
         old_values = self.series.values[positions].copy()
         self.series.values[positions] |= powerof2
         new_values = self.series.values[positions]
-        self._apply_arch_counts(old_values, new_values)
         for (old_arch, new_arch), k in self._compute_transitions(old_values, new_values).items():
+            old_int, new_int = int(old_arch), int(new_arch)
+            # Update arch counts (replaces _apply_arch_counts)
+            self._arch_counts[old_int] -= k
+            if self._arch_counts[old_int] == 0:
+                del self._arch_counts[old_int]
+            self._arch_counts[new_int] = self._arch_counts.get(new_int, 0) + k
             # component is new for these entities: add to new_arch only
             self._range_add(component, new_arch, k)
             # all other components already on these entities: transfer old_arch -> new_arch
@@ -155,10 +158,13 @@ class ArchetypeStore:
             raise KeyError(f"entities do not exist: {missing.tolist()}")
         old_values = self.series.loc[eids].values
         self.series = self.series.drop(index=eids)
-        self._apply_arch_counts(old_values, np.array([], dtype=self._dtype))
+        # Single np.unique pass handles both arch_counts and ranges updates
         if len(old_values):
             for arch, cnt in zip(*np.unique(old_values, return_counts=True)):
                 arch_int, cnt_int = int(arch), int(cnt)
+                self._arch_counts[arch_int] -= cnt_int
+                if self._arch_counts[arch_int] == 0:
+                    del self._arch_counts[arch_int]
                 for c, pw2_c in self._component_powers.items():
                     if arch_int & pw2_c:
                         self._range_remove(c, arch_int, cnt_int)
@@ -173,8 +179,13 @@ class ArchetypeStore:
         # Entities that don't have the component are silently skipped (&= is a no-op on zero bits).
         self.series.values[positions] &= ~powerof2
         new_values = self.series.values[positions]
-        self._apply_arch_counts(old_values, new_values)
         for (old_arch, new_arch), k in self._compute_transitions(old_values, new_values).items():
+            old_int, new_int = int(old_arch), int(new_arch)
+            # Update arch counts (replaces _apply_arch_counts)
+            self._arch_counts[old_int] -= k
+            if self._arch_counts[old_int] == 0:
+                del self._arch_counts[old_int]
+            self._arch_counts[new_int] = self._arch_counts.get(new_int, 0) + k
             # component is being removed: drop from old_arch only
             self._range_remove(component, old_arch, k)
             # all other components on these entities: transfer old_arch -> new_arch

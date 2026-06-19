@@ -223,8 +223,29 @@ class World:
             for comp in component_values.columns:
                 self._archs.add_component(indices, comp)
         frames = _component_series(component_values, indices)
-        for comp, series in frames.items():
-            self._add_component(comp, series, indices)
+        comps = list(frames.keys())
+        # Fast path: when all components are fresh (no prior data), every component
+        # series will have the same index (= indices), so we compute the sort order once.
+        all_fresh = len(indices) > 0 and all(
+            comp not in self._dict or len(self._dict[comp]) == 0
+            for comp in comps
+        )
+        if all_fresh:
+            for comp in comps:
+                _validate_component(comp)
+                self._dict[comp] = frames[comp]
+                self._dict[comp].name = comp
+            if comps:
+                sample = self._dict[comps[0]]
+                masks = self._archs.series.reindex(sample.index, fill_value=0)
+                order = np.lexsort((sample.index.to_numpy(), masks.to_numpy()))
+                for comp in comps:
+                    s = self._dict[comp]
+                    self._dict[comp] = s.iloc[order]
+                    self._dict[comp].name = comp
+        else:
+            for comp, series in frames.items():
+                self._add_component(comp, series, indices)
         self.maxind += num_entities
         self._index = None
         return indices.tolist()
@@ -274,10 +295,14 @@ class World:
                 corresponding to these entities in the component dataframes.
         """
         ids = np.asarray([ids]) if np.isscalar(ids) else np.asarray(ids)
-        for _, data in self._dict.items():
-            ids_in = np.intersect1d(ids, data.index, assume_unique=True)
-            data.drop(ids_in, inplace=True)
-        existing = np.intersect1d(ids, self._archs.series.index.to_numpy(), assume_unique=True)
+        # Build set once; use isin (hash lookup) instead of intersect1d (sort) per component
+        ids_set = set(ids.tolist())
+        for comp, data in list(self._dict.items()):
+            mask = data.index.isin(ids_set)
+            if mask.any():
+                self._dict[comp] = data.iloc[~mask]
+                self._dict[comp].name = comp
+        existing = ids[np.isin(ids, self._archs.series.index.to_numpy())]
         if len(existing):
             self._archs.remove_entities(existing)
         self._index = None
