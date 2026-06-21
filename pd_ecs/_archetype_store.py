@@ -123,16 +123,16 @@ class ArchetypeStore:
         old_values = self.series.values[positions].copy()
         self.series.values[positions] |= powerof2
         new_values = self.series.values[positions]
+        # this may be simpler vectorized
         for (old_arch, new_arch), k in self._compute_transitions(old_values, new_values).items():
             self._update_archetype(component, old_arch, new_arch, k)
+            self._range_add(component, new_arch, k)
 
     def _update_archetype(self, component, old_arch, new_arch, k):
-        # Update arch counts (replaces _apply_arch_counts)
         self._arch_counts[old_arch] -= k
+        if self._arch_counts[old_arch] == 0:
+            del self._arch_counts[old_arch]
         self._arch_counts[new_arch] = self._arch_counts.get(new_arch, 0) + k
-        # component is new for these entities: add to new_arch only
-        self._range_add(component, new_arch, k)
-        # all other components already on these entities: transfer old_arch -> new_arch
         for c, pw2_c in self._component_powers.items():
             if c is not component and old_arch & pw2_c:
                 self._range_remove(c, old_arch, k)
@@ -184,19 +184,8 @@ class ArchetypeStore:
         self.series.values[positions] &= ~powerof2
         new_values = self.series.values[positions]
         for (old_arch, new_arch), k in self._compute_transitions(old_values, new_values).items():
-            old_int, new_int = int(old_arch), int(new_arch)
-            # Update arch counts (replaces _apply_arch_counts)
-            self._arch_counts[old_int] -= k
-            if self._arch_counts[old_int] == 0:
-                del self._arch_counts[old_int]
-            self._arch_counts[new_int] = self._arch_counts.get(new_int, 0) + k
-            # component is being removed: drop from old_arch only
-            self._range_remove(component, old_arch, k)
-            # all other components on these entities: transfer old_arch -> new_arch
-            for c, pw2_c in self._component_powers.items():
-                if c is not component and old_arch & pw2_c:
-                    self._range_remove(c, old_arch, k)
-                    self._range_add(c, new_arch, k)
+            self._update_archetype(component, old_arch, new_arch, k)
+            self._range_remove(component, new_arch, k)
 
     def choose_archetypes(self, filt):
         """Select archetype numbers corresponding to filter.
