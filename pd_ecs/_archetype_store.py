@@ -48,28 +48,28 @@ class ArchetypeStore:
         return pos
 
     def _range_add(self, comp, arch, count):
-        """Add count entities to archetype arch in ranges for comp."""
-        if comp not in self._ranges:
-            self._ranges[comp] = (
-                np.array([], dtype=np.int64),
-                np.array([], dtype=np.int64),
-                np.array([], dtype=np.int64),
-            )
+        """Add count entities to archetype range in component
+
+        Each component maintains a (start, stop) range for each archetype.
+        This method adds entities to the relevant ranges for one component.
+        arch and
+
+        Arguments:
+            comp: a Component for which to add the entities
+            arch: Archetypes for which to add entities
+            count: number of entities to add to the range
+        """
+        _ensure_comp_in_ranges(self._ranges, comp)
         archs, starts, stops = self._ranges[comp]
         pos = int(np.searchsorted(archs, arch))
         if pos < len(archs) and archs[pos] == arch:
-            # Existing archetype: shift stop of this arch and start/stop of all following
+            # Existing archetype
             stops[pos:] += count
             starts[pos + 1:] += count
-        else:
-            # New archetype: insert sorted, then shift everything after it
-            new_start = int(stops[pos - 1]) if pos > 0 else 0
-            new_archs = np.insert(archs, pos, arch)
-            new_starts = np.insert(starts, pos, new_start)
-            new_stops = np.insert(stops, pos, new_start + count)
-            new_starts[pos + 1:] += count
-            new_stops[pos + 1:] += count
-            self._ranges[comp] = (new_archs, new_starts, new_stops)
+            return
+        self.ranges[comp] = _add_archetypeto_ranges(
+            archs, starts, stops, pos, arch
+        )
 
     def _range_remove(self, comp, arch, count):
         """Remove count entities from archetype arch in ranges for comp."""
@@ -218,3 +218,28 @@ class ArchetypeStore:
             pw2 = self._ensure_power(comp)
             archetypes = archetypes[(archetypes & pw2) != 0]
         return archetypes
+
+
+def _ensure_comp_in_ranges(ranges, comp):
+    if comp not in ranges:
+        ranges[comp] = (
+            np.array([], dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([], dtype=np.int64),
+        )
+
+
+def _add_archetypeto_ranges(
+        archs,
+        starts,
+        stops,
+        pos,
+        arch
+    ):
+    new_start = int(stops[pos - 1]) if pos > 0 else 0
+    new_archs = np.insert(archs, pos, arch)
+    new_starts = np.insert(starts, pos, new_start)
+    new_stops = np.insert(stops, pos, new_start + count)
+    new_starts[pos + 1:] += count
+    new_stops[pos + 1:] += count
+    return (new_archs, new_starts, new_stops)
