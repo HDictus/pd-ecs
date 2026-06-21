@@ -114,6 +114,8 @@ class ArchetypeStore:
 
     def add_component(self, eids, component):
         eids = self._coerce_eids(eids)
+        if len(eids) == 0:
+            return 0
         powerof2 = self._ensure_power(component)
         positions = self._positions(eids)
         old_values = self.series.values[positions].copy()
@@ -171,6 +173,8 @@ class ArchetypeStore:
 
     def remove_component(self, eids, component):
         eids = self._coerce_eids(eids)
+        if len(eids) == 0:
+            return
         if component not in self._component_powers:
             raise KeyError(component)
         powerof2 = self._component_powers[component]

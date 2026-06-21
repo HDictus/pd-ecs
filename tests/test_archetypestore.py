@@ -60,6 +60,18 @@ def test_remove_components():
 
 # --- edge cases ---
 
+
+def test_add_or_remove_empty():
+    archs = ArchetypeStore(dtype=np.int32)
+    comp1 = Component('a')
+    comp2 = Component('b')
+    archs.add_entities(0)
+    archs.add_component([], comp1)
+    assert archs.ranges == {}
+    archs.remove_component([], comp2)
+    assert archs.ranges == {}
+
+
 def test_add_duplicate_entity_raises():
     archs = ArchetypeStore()
     archs.add_entities(0)
