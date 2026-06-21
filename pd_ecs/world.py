@@ -150,10 +150,10 @@ class World:
             for arch in relevant_archetypes:
                 arch_int = int(arch)
                 ref_comp = includes[0]
-                start_ref, stop_ref = self._archs._range_lookup(ref_comp, arch_int)
+                start_ref, stop_ref = self._archs.range_lookup(ref_comp, arch_int)
                 index_parts.append(self._dict[ref_comp].get_index_range(start_ref, stop_ref))
                 for comp in includes:
-                    start, stop = self._archs._range_lookup(comp, arch_int)
+                    start, stop = self._archs.range_lookup(comp, arch_int)
                     slices[comp].extend(self._dict[comp].get_slice_specs(start, stop))
             combined_index = pd.Index(np.concatenate(index_parts))
             return EntityView(combined_index, slices)

@@ -84,7 +84,7 @@ class ArchetypeStore:
                 np.delete(stops, pos),
             )
 
-    def _range_lookup(self, comp, arch):
+    def range_lookup(self, comp, arch):
         """Return (start, stop) for arch in comp's ranges."""
         archs, starts, stops = self._ranges[comp]
         pos = int(np.searchsorted(archs, arch))
@@ -137,7 +137,7 @@ class ArchetypeStore:
                 self._range_add(c, new_arch, k)
 
     @property
-    def ranges(self):
+    def _test_ranges(self):
         return {
             comp: {int(a): (int(s), int(e)) for a, s, e in zip(*data)}
             for comp, data in self._ranges.items()
