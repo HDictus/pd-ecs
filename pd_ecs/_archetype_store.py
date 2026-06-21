@@ -14,25 +14,29 @@ class ArchetypeStore:
         self._ranges = {}
 
     def add_entities(self, eids):
-        eids = np.asarray([eids]) if np.isscalar(eids) else np.asarray(eids)
+        """Register entities with the archetype store.
+
+        This adds the entity ids to the underlying series
+        mapping entity id to archetype id.
+        """
+        eids = self._validate_eids(eids)
+        new_series = pd.Series(0, index=eids, dtype=self._dtype)
+        # Skip sort when new eids are already ordered and all follow existing ones.
+        # World.add_entities always passes np.arange(maxind, ...) which satisfies this.
+        self.series = pd.concat([self.series, new_series])
+        # arch 0 has no component bits; it never appears in _ranges
+        self._arch_counts[0] = self._arch_counts.get(0, 0) + len(eids)
+
+    def _validate_eids(self, eids):
+        eids = self._coerce_eids(eids)
         if len(np.unique(eids)) < len(eids):
             raise ValueError(f"duplicate eids in input")
         overlap = self.series.index.intersection(eids)
         if len(overlap):
             raise ValueError(f"entities already exist: {overlap}")
-        new_series = pd.Series(0, index=eids, dtype=self._dtype)
-        # Skip sort when new eids are already ordered and all follow existing ones.
-        # World.add_entities always passes np.arange(maxind, ...) which satisfies this.
-        if len(self.series) == 0 or (
-            np.all(np.diff(eids) >= 0) and eids[0] > self.series.index[-1]
-        ):
-            self.series = pd.concat([self.series, new_series])
-        else:
-            self.series = pd.concat([self.series, new_series]).sort_index()
-        # arch 0 has no component bits; it never appears in _ranges
-        self._arch_counts[0] = self._arch_counts.get(0, 0) + len(eids)
+        return eids
 
-    def _validate_eids(self, eids):
+    def _coerce_eids(self, eids):
         return np.asarray([eids]) if np.isscalar(eids) else np.asarray(eids)
 
     def _positions(self, eids):
@@ -113,7 +117,7 @@ class ArchetypeStore:
         return self._component_powers[component]
 
     def add_component(self, eids, component):
-        eids = self._validate_eids(eids)
+        eids = self._coerce_eids(eids)
         powerof2 = self._ensure_power(component)
         positions = self._positions(eids)
         old_values = self.series.values[positions].copy()
@@ -170,7 +174,7 @@ class ArchetypeStore:
                         self._range_remove(c, arch_int, cnt_int)
 
     def remove_component(self, eids, component):
-        eids = self._validate_eids(eids)
+        eids = self._coerce_eids(eids)
         if component not in self._component_powers:
             raise KeyError(component)
         powerof2 = self._component_powers[component]
