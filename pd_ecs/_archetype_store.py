@@ -72,7 +72,7 @@ class ArchetypeStore:
         )
 
     def _range_remove(self, comp, arch, count):
-        """Remove count entities from archetype arch in ranges for comp."""
+        """Remove entities from archetype range"""
         archs, starts, stops = self._ranges[comp]
         pos = int(np.searchsorted(archs, arch))
         stops[pos:] -= count
