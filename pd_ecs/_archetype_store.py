@@ -67,8 +67,8 @@ class ArchetypeStore:
             stops[pos:] += count
             starts[pos + 1:] += count
             return
-        self.ranges[comp] = _add_archetypeto_ranges(
-            archs, starts, stops, pos, arch
+        self._ranges[comp] = _add_archetypeto_ranges(
+            archs, starts, stops, pos, count, arch
         )
 
     def _range_remove(self, comp, arch, count):
@@ -124,19 +124,19 @@ class ArchetypeStore:
         self.series.values[positions] |= powerof2
         new_values = self.series.values[positions]
         for (old_arch, new_arch), k in self._compute_transitions(old_values, new_values).items():
-            old_int, new_int = int(old_arch), int(new_arch)
-            # Update arch counts (replaces _apply_arch_counts)
-            self._arch_counts[old_int] -= k
-            if self._arch_counts[old_int] == 0:
-                del self._arch_counts[old_int]
-            self._arch_counts[new_int] = self._arch_counts.get(new_int, 0) + k
-            # component is new for these entities: add to new_arch only
-            self._range_add(component, new_arch, k)
-            # all other components already on these entities: transfer old_arch -> new_arch
-            for c, pw2_c in self._component_powers.items():
-                if c is not component and old_arch & pw2_c:
-                    self._range_remove(c, old_arch, k)
-                    self._range_add(c, new_arch, k)
+            self._update_archetype(component, old_arch, new_arch, k)
+
+    def _update_archetype(self, component, old_arch, new_arch, k):
+        # Update arch counts (replaces _apply_arch_counts)
+        self._arch_counts[old_arch] -= k
+        self._arch_counts[new_arch] = self._arch_counts.get(new_arch, 0) + k
+        # component is new for these entities: add to new_arch only
+        self._range_add(component, new_arch, k)
+        # all other components already on these entities: transfer old_arch -> new_arch
+        for c, pw2_c in self._component_powers.items():
+            if c is not component and old_arch & pw2_c:
+                self._range_remove(c, old_arch, k)
+                self._range_add(c, new_arch, k)
 
     @property
     def ranges(self):
@@ -234,12 +234,13 @@ def _add_archetypeto_ranges(
         starts,
         stops,
         pos,
+        count,
         arch
-    ):
+):
     new_start = int(stops[pos - 1]) if pos > 0 else 0
     new_archs = np.insert(archs, pos, arch)
     new_starts = np.insert(starts, pos, new_start)
     new_stops = np.insert(stops, pos, new_start + count)
     new_starts[pos + 1:] += count
     new_stops[pos + 1:] += count
-    return (new_archs, new_starts, new_stops)
+    return new_archs, new_starts, new_stops
