@@ -5,16 +5,79 @@ It is defined as consisting of a certain set of component types.
 Systems are added to the world.
 World.events.<event_name> calls that event for all systems in the world
 """
+
 from collections.abc import Iterable
 from typing import Dict
-import pandas as pd
+
 import numpy as np
-from .exceptions import ComponentError
-from .component import Component
-from .filter import Filter
+import pandas as pd
+from lazy import lazy
+
 from ._filter_ops import Exclude
+from .component import Component
+from .data_abstraction import GETTERS, SETTERS
+from .exceptions import ComponentError
 
 
+class LocIndexer:
+    """Entity indexer, works like pandas .loc attribute."""
+
+    def __init__(self, world):
+        """Initialize the loc indexer for world."""
+        self.world = world
+
+    def __getitem__(self, key):
+        """Get components of specific entities."""
+        if not isinstance(key, tuple):
+            raise ValueError(
+                "Loc indexing without components is not supported.")
+        return self.world[key[1]].loc[key[0]]
+
+    def __setitem__(self, key, values):
+        """Update/add components on entities."""
+        if not isinstance(key, tuple):
+            # TODO: support this
+            raise ValueError(
+                "Loc indexing without components is not supported")
+        index, columns = key
+        if not isinstance(columns, list):
+            columns = [columns]
+
+        if pd.api.types.is_scalar(index):
+            self._set_single_row(values, index, columns)
+            return
+
+        data = pd.DataFrame(values, columns=columns, index=index)
+        for column, series in data.items():
+            self._set_column(column, series.index, series.values)
+
+    def _set_single_row(self, values, index, columns):
+        val = pd.Series(values, index=columns)
+        for col in columns:
+            self._set_column(col, index, val[col])
+
+    def _set_column(self, column, index, values):
+        if column in SETTERS:
+            SETTERS[column](self.world, index, values)
+            return
+        self.world[column].loc[index] = values
+
+    def __delitem__(self, key):
+        """Remove components or delete entities."""
+        if not isinstance(key, tuple):
+            self.world.remove_entities(key)
+            return
+        index = key[0]
+        cols = key[1]
+        if not isinstance(cols, list):
+            cols = [cols]
+        components = [c if isinstance(c, Component)
+                      else c[0] for c in cols]
+        self.world.take(index, *components)
+
+
+# TODO: a disproportionate amount of functionality is getting clustered in world
+#    separate it out, e.g. into _impls ?
 class World:
     """
     The World stores and manages the state and events of the simulation.
@@ -23,55 +86,74 @@ class World:
     """
 
     def __init__(self):
-        """
-        components: component types the world consists of
-        """
+        """Create a world."""
         self._dict: dict = {}
-        self._filters = {}
-        self.filters_by_component: dict = {}
         self.maxind = 0
 
-    def _add_filter(self, components):
-        """Add a new filter to the world."""
-        filt = Filter(*components, world=self)
-        self._filters[components] = filt
-        for comp in components:
-            # TODO: seems like poor separation of concerns
-            if isinstance(comp, Exclude):
-                comp = comp.component
-            if comp not in self.filters_by_component:
-                self._initialize_state((comp, ))
-            self.filters_by_component[comp].append(filt)
+    @property
+    def index(self):
+        """All entity ids."""
+        ids = []
+        for _, df in self._dict.items():
+            ids = df.index.union(ids)
+        return ids
 
     def __getitem__(self, key):
-        if isinstance(key, tuple):
-            if key not in self._filters:
-                self._add_filter(key)
-            return self._filters[key]
+        """Get data for components."""
+        item = self._get_item(key)
+        if isinstance(key, Component) and key.is_compound:
+            item = item[key]
+        return item
+
+    def _get_item(self, key):
+        if isinstance(key, list):
+            return self._get_multiple(key)
+        _validate_component(key)
+        # TODO: not really happy with this
+        if isinstance(key, Component) and key.is_compound:
+            return self._get_multiple(list(key.subcomponents.values()))
+        series = self._get(key)
+        series.name = key
+        return series
+
+    def _get(self, key):
         if key not in self._dict:
+            if key in GETTERS:
+                return GETTERS[key](self)
             self._initialize_state((key,))
         return self._dict[key]
 
-    def _notify_filters_added(self, component, ids):
-        """Inform the relevant filters ids have component now."""
-        # pylint: disable=protected-access
-        for filt in self.filters_by_component[component]:
-            filt._components_added(component, ids)
+    def _get_multiple(self, key):
+        exclude = [k for k in key if isinstance(k, Exclude)]
+        to_concat = [self._get_item(k) for k in key if k not in exclude]
 
-    def _notify_filters_removed(self, component, ids):
-        """Inform the relevant filters ids no longer have component.e"""
-        # pylint: disable=protected-access
-        for filt in self.filters_by_component[component]:
-            filt._components_removed(component, ids)
+        for exclude_component in exclude:
+            excluded = to_concat[0].index.intersection(
+                self[exclude_component.component].index
+            )
+            to_concat[0] = to_concat[0].drop(excluded, axis=0)
+
+        out = pd.concat(to_concat, join="inner", axis=1)
+        _ensure_columns_index_level_consistent(out)
+        return out
+
+    @lazy
+    def loc(self):
+        """Loc indexer, like pandas.DataFrame.loc."""
+        return LocIndexer(self)
 
     def _initialize_state(self, components: Iterable):
         for component in components:
-            self._dict[component] = component.init_dataframe()
-            self.filters_by_component[component] = []
+            if isinstance(component, tuple):
+                series = component[-1].init_series()
+                series.name = component
+                self._dict[component] = series
+                continue
+            self._dict[component] = component.init_series()
 
     def set_state(self, state: Dict[Component, pd.DataFrame]):
         """
-        Set the state of the world (entities, components) to the provided value
+        Set the state of the world (entities, components) to the provided value.
 
         Arguments:
             state: of the form:
@@ -83,9 +165,10 @@ class World:
         for component, data in state.items():
             self._add_component(component, data, data.index)
 
-    def add_entities(self, component_values: Dict[Component, pd.DataFrame]):
+    def add_entities(self, component_values):
         """
         Add entities to the world.
+
         Arguments:
             component_values is a dict of dicts  of the form
                 {<component>: {<field>: values}}
@@ -93,93 +176,116 @@ class World:
                 the index is ignored
                 a dataframe or list of dicts also works
         """
-        num_entities = _number_of_entities(component_values)
+        component_values = pd.DataFrame(component_values)
+        num_entities = len(component_values)
         indices = range(self.maxind, self.maxind + num_entities)
-        frames = _component_dataframes(component_values, indices)
+        frames = _component_series(component_values, indices)
         self._add_components(frames, indices)
         self.maxind += num_entities
         return list(indices)
 
-    def _add_components(self, frames, indices):
-        for comp, frame in frames.items():
-            self._add_component(comp, frame, indices)
-            self._notify_filters_added(comp, indices)
+    def _add_components(self, frame, indices):
+        for comp, series in frame.items():
+            self._add_component(comp, series, indices)
 
-    def _add_component(self, comp, frame, indices, keep='last'):
+    def _add_component(self, comp, series, indices):
+        _validate_component(comp)
         if comp not in self._dict:
-            self._initialize_state((comp, ))
+            self._initialize_state((comp,))
+        new_comp = pd.concat([
+            self._dict[comp],
+            pd.Series(series, index=indices)])
+        new_comp.name = self._dict[comp].name
 
-        for key in frame:
-            if key not in comp.fields:
-                raise ComponentError(
-                    f"field {key} does not belong to {comp}")
-
-        new_df = pd.concat(
-            [self[comp],
-             frame.set_index(np.array(indices))]
-        )
-        new_df['ind'] = new_df.index
-        # prevent adding duplicate components
-        self._dict[comp] =\
-            new_df.drop_duplicates(keep=keep, subset='ind')[list(comp.fields)]
+        self._dict[comp] = new_comp[~new_comp.index.duplicated(keep="last")]
 
     def give(self, ids, components):
         """Add given components to entities corresponding to ids."""
-        frames = _component_dataframes(components, indices=ids)
+        frames = _component_series(components, indices=ids)
         self._add_components(frames, ids)
 
     def take(self, ids, *components):
         """Remove given components from entities corresponding to ids."""
         for component in components:
-            self._dict[component].drop(ids, inplace=True)
-            self._notify_filters_removed(component, ids)
+            if component.is_compound:
+                for _, comp in component.subcomponents.items():
+                    self._dict[comp].drop(ids, inplace=True)
+            else:
+                self._dict[component].drop(ids, inplace=True)
 
     def remove_entities(self, ids):
         """
-        Removes given entities from the world.
+        Remove given entities from the world.
 
         Arguments:
             ids: the entity ids, corresponding to the indices of rows
                 corresponding to these entities in the component dataframes.
         """
-        for comp, data in self._dict.items():
+        for _, data in self._dict.items():
             ids_in = np.intersect1d(ids, data.index)
             data.drop(ids_in, inplace=True)
-            self._notify_filters_removed(comp, ids)
 
     def update(self, components: Dict[Component, pd.DataFrame]):
         """
-        Update the world state with given component dataframes
+        Update the world state with given component dataframes.
 
         Arguments:
-            components is a dict of component: dataframe. the values in the
-                dataframes represent the new values for those components in
-                for the entities corresponding to their index.
+            components is a dict of component: dataframe. the values
+                in the dataframes represent the new values for those
+                components in for the entities corresponding to their
+                index.
         """
         for comp, frame in components.items():
-            self[comp].loc[frame.index] = frame
+            if isinstance(comp, Component) and comp.is_compound:
+                self.update({
+                    (comp, col): value
+                    for col, value in frame.items()}
+                )
+            else:
+                self[comp].loc[frame.index] = frame
 
 
-def _number_of_entities(components):
-    """gets the number of entities suggested by component data"""
-    nentities = None
-    for _, data in components.items():
-        for field, values in data.items():
-            if isinstance(values, Iterable):
-                if nentities is None:
-                    nentities = len(values)
-                else:
-                    if len(values) != nentities:
-                        raise ComponentError(
-                            f"could not interperet number of entities for "
-                            f"components. length of {field}, {values} is not "
-                            f"equal to {nentities}")
-    if nentities == 0:
-        return 0
-    return nentities or 1
+def _component_series(components, indices):
+    def _get_values(ser):
+        try:
+            return ser.values
+        except AttributeError:
+            return ser
+
+    return {
+        comp: pd.Series(_get_values(ser), index=indices)
+        for comp, ser in components.items()
+    }
 
 
-def _component_dataframes(components, indices):
-    frames = {component: pd.DataFrame(value, index=indices)
-              for component, value in components.items()}
-    return frames
+def _is_component(comp):
+    if isinstance(comp, Component):
+        return True
+    return isinstance(comp, tuple) and all(
+        isinstance(c, Component) for c in comp)
+
+
+def _validate_component(comp):
+    if not _is_component(comp):
+        raise ComponentError(
+            "component column names must be Component objects. "
+            f"Recieved {comp} instead"
+        )
+
+
+def _ensure_columns_index_level_consistent(df):
+    column_index_depth = 1
+    for k in df.columns:
+        if isinstance(k, tuple):
+            column_index_depth = max(column_index_depth, len(k))
+    if column_index_depth == 1:
+        return df
+    if column_index_depth > 1:
+        cols = []
+        for col in df.columns:
+            if not isinstance(col, tuple):
+                col = (col,)
+            col += ("",) * (column_index_depth - len(col))
+            cols.append(col)
+        df.columns = pd.MultiIndex.from_tuples(cols)
+    return df
