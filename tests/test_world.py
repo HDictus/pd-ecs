@@ -319,6 +319,22 @@ def test_world_index():
     assert all(world.index == new)
 
 
+def test_world_give_overwrites_existing_component():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [10, 20, 30], comp2: [1, 2, 3]})  # entities 0, 1, 2
+
+    # Give comp1 to entities 0 and 1, which already have comp1
+    world.give([0, 1], {comp1: [99, 88]})
+
+    # New values should overwrite old; entity 2 is unchanged
+    import pdb; pdb.set_trace()
+    qry = world[[comp1, comp2]]
+    assert np.allclose(qry[comp1], [99, 88, 30])
+    assert np.allclose(qry[comp2], [1, 2, 3])
+
+
 def test_world_take_component_not_present_is_noop():
     comp1 = Component('a')
     comp2 = Component('b')

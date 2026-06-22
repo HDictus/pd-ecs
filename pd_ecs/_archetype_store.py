@@ -92,8 +92,10 @@ class ArchetypeStore:
 
     def _compute_transitions(self, old_values, new_values):
         """Return {(old_arch, new_arch): count} for entities whose arch changed."""
-        # Fast path: single archetype transition (all entities share the same old arch).
-        # This is the common case in bulk add_component / remove_component calls.
+        changed = old_values != new_values
+        if not np.any(changed):
+            return {}
+        old_values, new_values = old_values[changed], new_values[changed]
         if old_values.min() == old_values.max():
             return {(int(old_values[0]), int(new_values[0])): len(old_values)}
         pairs = np.stack([old_values, new_values], axis=1)
