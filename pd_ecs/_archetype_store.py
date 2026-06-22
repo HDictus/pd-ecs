@@ -20,6 +20,9 @@ class ArchetypeStore:
         mapping entity id to archetype id.
         """
         eids = self._validate_eids(eids)
+        overlap = self.series.index.intersection(eids)
+        if len(overlap):
+            raise ValueError(f"entities already exist: {overlap}")
         new_series = pd.Series(0, index=eids, dtype=self._dtype)
         # Skip sort when new eids are already ordered and all follow existing ones.
         # World.add_entities always passes np.arange(maxind, ...) which satisfies this.
@@ -31,9 +34,6 @@ class ArchetypeStore:
         eids = self._coerce_eids(eids)
         if len(np.unique(eids)) < len(eids):
             raise ValueError(f"duplicate eids in input")
-        overlap = self.series.index.intersection(eids)
-        if len(overlap):
-            raise ValueError(f"entities already exist: {overlap}")
         return eids
 
     def _coerce_eids(self, eids):
@@ -143,33 +143,22 @@ class ArchetypeStore:
             for comp, data in self._ranges.items()
         }
 
-    @property
-    def archetype_counts(self):
-        keys = np.array(sorted(self._arch_counts), dtype=self._dtype)
-        return pd.Series(
-            np.array([self._arch_counts[int(k)] for k in keys], dtype=np.intp),
-            index=pd.Index(keys, dtype=self._dtype)
-        )
-
     def remove_entities(self, eids):
-        eids = np.asarray([eids]) if np.isscalar(eids) else np.asarray(eids)
-        if len(np.unique(eids)) < len(eids):
-            raise ValueError(f"duplicate eids in input")
+        eids = self._validate_eids(eids)
         missing = np.setdiff1d(eids, self.series.index.to_numpy(), assume_unique=True)
         if len(missing):
             raise KeyError(f"entities do not exist: {missing.tolist()}")
         old_values = self.series.loc[eids].values
+        for arch, cnt in zip(*np.unique(old_values, return_counts=True)):
+            self._arch_counts[arch] -= cnt
+            self._remove_from_ranges_for_arch(arch, cnt)
         self.series = self.series.drop(index=eids)
-        # Single np.unique pass handles both arch_counts and ranges updates
-        if len(old_values):
-            for arch, cnt in zip(*np.unique(old_values, return_counts=True)):
-                arch_int, cnt_int = int(arch), int(cnt)
-                self._arch_counts[arch_int] -= cnt_int
-                if self._arch_counts[arch_int] == 0:
-                    del self._arch_counts[arch_int]
-                for c, pw2_c in self._component_powers.items():
-                    if arch_int & pw2_c:
-                        self._range_remove(c, arch_int, cnt_int)
+
+    def _remove_from_ranges_for_arch(self, arch, count):
+        """Remove count entities from each range relevant to archetype."""
+        for c, pw2_c in self._component_powers.items():
+            if arch & pw2_c:
+                self._range_remove(c, arch, count)
 
     def remove_component(self, eids, component):
         eids = self._coerce_eids(eids)
