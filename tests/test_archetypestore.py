@@ -304,6 +304,32 @@ def test_remove_multiple_entities():
         pd.Series([0, 1], index=[0, 2], dtype=np.uint32)
     )
 
+
+def test_remove_entities_deletes_emptied_archetype_from_counts():
+    # Regression: remove_entities decremented _arch_counts but, unlike
+    # _update_archetype (used by add_component/remove_component), never
+    # deleted the entry once it hit zero. A stale zero-count archetype then
+    # leaked out of choose_archetypes even though its per-component _ranges
+    # entry had already been cleaned up by _range_remove -- so range_lookup
+    # would resolve it via searchsorted to whichever archetype happened to
+    # occupy that now-vacant sorted slot, silently duplicating that
+    # archetype's entities in any world query touching more than one
+    # component (eventually surfacing as `ValueError: duplicate eids in
+    # input` out of a later remove_entities call).
+    archs = ArchetypeStore()
+    a = Component('a')
+    b = Component('b')
+    archs.add_entities([0, 1, 2])
+    archs.add_component([0, 1], a)  # 0, 1: archetype 1 (a only)
+    archs.add_component([2], a)
+    archs.add_component([2], b)     # 2: archetype 3 (a+b)
+
+    archs.remove_entities([0, 1])   # empties archetype 1 entirely
+
+    assert 1 not in archs._arch_counts
+    assert list(archs.choose_archetypes([a])) == [3]
+
+
 # --- basic ranges ---
 
 def test_range_on_component_added():

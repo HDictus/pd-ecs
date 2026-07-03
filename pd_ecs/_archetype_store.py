@@ -153,6 +153,8 @@ class ArchetypeStore:
         old_values = self.series.loc[eids].values
         for arch, cnt in zip(*np.unique(old_values, return_counts=True)):
             self._arch_counts[arch] -= cnt
+            if self._arch_counts[arch] == 0:
+                del self._arch_counts[arch]
             self._remove_from_ranges_for_arch(arch, cnt)
         self.series = self.series.drop(index=eids)
 

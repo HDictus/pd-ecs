@@ -236,6 +236,24 @@ def test_world_remove_entities():
     assert list(world[component1].index) == []
 
 
+def test_world_query_after_remove_entities_empties_an_archetype():
+    # Regression: removing every entity of a given archetype used to leave a
+    # stale, zero-count archetype behind (see
+    # test_remove_entities_deletes_emptied_archetype_from_counts in
+    # test_archetypestore.py). A multi-component query touching that
+    # archetype's bits would then read a neighbouring archetype's range by
+    # mistake instead of coming back empty.
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1, 2], comp2: [1, 2]})  # 0, 1: archetype with both
+    world.add_entities({comp1: [3]})                    # 2: archetype with comp1 only
+
+    world.remove_entities([0, 1])  # empties the "both" archetype entirely
+
+    assert list(world[[comp1, comp2]].index) == []
+
+
 def test_world_set_state():
     comp1 = Component('a')
     comp2 = Component('b')
@@ -329,7 +347,6 @@ def test_world_give_overwrites_existing_component():
     world.give([0, 1], {comp1: [99, 88]})
 
     # New values should overwrite old; entity 2 is unchanged
-    import pdb; pdb.set_trace()
     qry = world[[comp1, comp2]]
     assert np.allclose(qry[comp1], [99, 88, 30])
     assert np.allclose(qry[comp2], [1, 2, 3])
