@@ -323,6 +323,29 @@ def test_range_on_component_removed():
     assert archs._test_ranges[comp] == {1: (0, 2)}
 
 
+def test_range_on_non_first_component_removed_from_shared_archetype():
+    # Regression test: removing a component that isn't the first one
+    # registered (i.e. not bit 0) used to corrupt that component's own
+    # _ranges, because remove_component shrank the range at the entity's
+    # *new* archetype instead of its *old* one. That silently dropped
+    # unrelated entities from the range and left a stale/incorrect entry
+    # behind, which downstream could surface as entities appearing twice
+    # (or not at all) when reading multiple components, eventually causing
+    # `ValueError: duplicate eids in input` out of remove_entities.
+    archs = ArchetypeStore()
+    z = Component('z')  # registered first -> bit 0
+    x = Component('x')  # registered second -> bit 1
+    archs.add_entities([0, 1, 2])
+    archs.add_component([0, 2], z)  # entity 0: z only, entity 2: z
+    archs.add_component([1, 2], x)  # entity 1: x only, entity 2: z+x
+    assert archs._test_ranges[x] == {2: (0, 1), 3: (1, 2)}
+
+    archs.remove_component(2, x)
+
+    # entity 1 (mask 2, x only) must still be tracked in x's ranges
+    assert archs._test_ranges[x] == {2: (0, 1)}
+
+
 def test_range_on_entity_removed():
     archs = ArchetypeStore()
     comp = Component('a')

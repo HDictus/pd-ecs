@@ -176,7 +176,7 @@ class ArchetypeStore:
         new_values = self.series.values[positions]
         for (old_arch, new_arch), k in self._compute_transitions(old_values, new_values).items():
             self._update_archetype(component, old_arch, new_arch, k)
-            self._range_remove(component, new_arch, k)
+            self._range_remove(component, old_arch, k)
 
     def choose_archetypes(self, filt):
         """Select archetype numbers corresponding to filter.
