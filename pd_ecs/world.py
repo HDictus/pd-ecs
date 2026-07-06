@@ -237,9 +237,6 @@ class World:
     def give(self, ids, components):
         """Add given components to entities corresponding to ids."""
         ids = np.asarray([ids]) if np.isscalar(ids) else np.asarray(ids)
-        new_eids = np.setdiff1d(ids, self._archs.series.index.to_numpy(), assume_unique=True)
-        if len(new_eids):
-            self._archs.add_entities(new_eids)
         for comp in components:
             self._archs.add_component(ids, comp)
         frames = _component_series(components, indices=ids)

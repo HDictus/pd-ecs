@@ -195,18 +195,14 @@ def test_world_give():
     assert list(world[component1].index) == [5, 1, 2, 4]
     assert list(world[component1]) == ['a', 'a', 'c', 'b']
 
-# TODO: give using loc indexing, with setter
-def test_world_give_single():
+def test_world_give_nonexistent_entity():
     component1 = Component('some')
 
     world = World()
 
     world.add_entities({component1: ['d']})
-    world.give(1, {component1: 'b'})
-    pd.testing.assert_series_equal(
-        world[component1],
-        pd.DataFrame({component1: ['d', 'b']})[component1]
-    )
+    with pyt.raises(KeyError):
+        world.give(1, {component1: 'b'})
 
 def test_world_take():
     component1 = Component('some')
