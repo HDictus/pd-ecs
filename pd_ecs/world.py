@@ -154,9 +154,6 @@ class World:
         for comp in components:
             self._dict[comp] = comp.init_series()
 
-    def _determine_columns(self, keys):
-        return [key for key in keys if not isinstance(key, Exclude)]
-
     def set_state(self, state: Dict[Component, pd.DataFrame]):
         """
         Set the state of the world (entities, components) to the provided value.
