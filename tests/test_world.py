@@ -204,6 +204,51 @@ def test_world_give_nonexistent_entity():
     with pyt.raises(KeyError):
         world.give(1, {component1: 'b'})
 
+def test_world_add_entities_sorts_by_final_archetype_across_partial_calls():
+    """When add_entities adds one component's data at a time (the slow path,
+    triggered whenever a call mixes a pre-existing component with a brand-new
+    one), every component array must end up ordered by each entity's FINAL
+    combined archetype bitmask, not by whatever partial bitmask existed when
+    that particular component's turn came up, and not by eid or call order."""
+    comp1 = Component('comp1')
+    comp2 = Component('comp2')
+    comp3 = Component('comp3')
+
+    world = World()
+
+    # comp1 registered first -> bit 1, comp2 registered second -> bit 2
+    # entity 0: comp1 + comp2 -> archetype 1|2 = 3
+    world.add_entities({comp1: [1], comp2: [2]})
+
+    # comp1 already exists -> slow, one-component-at-a-time path.
+    # entity 1: comp1 only -> archetype 1
+    world.add_entities({comp1: [3]})
+
+    # comp1 already exists -> slow path again. comp3 is brand new here,
+    # registered alongside comp1 in the SAME call, for the SAME new entity.
+    # If comp1's sort only accounted for bits known at the moment comp1 itself
+    # was processed (rather than entity 2's final combined archetype), it
+    # would misplace entity 2.
+    # comp3 registered third -> bit 4
+    # entity 2: comp1 + comp3 -> archetype 1|4 = 5
+    world.add_entities({comp1: [5], comp3: [50]})
+
+    # Ascending archetype order: 1 (entity 1), 3 (entity 0), 5 (entity 2)
+    assert list(world[comp1].index) == [1, 0, 2]
+    assert list(world[comp1]) == [3, 1, 5]
+
+    # A later call touching only comp2 (bit 2) for a new entity produces
+    # archetype 2, which sorts between entity 1's (1) and entity 0's (3),
+    # despite entity 3 having the highest eid of the three.
+    # entity 3: comp2 only -> archetype 2
+    world.add_entities({comp2: [20]})
+    assert list(world[comp2].index) == [3, 0]
+    assert list(world[comp2]) == [20, 2]
+
+    assert list(world[comp3].index) == [2]
+    assert list(world[comp3]) == [50]
+
+
 def test_world_take():
     component1 = Component('some')
     component2 = Component('field')
