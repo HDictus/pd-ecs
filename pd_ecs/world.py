@@ -17,7 +17,6 @@ from ._archetype_store import ArchetypeStore
 from ._entity_view import EntityView
 from ._filter_ops import Exclude
 from .component import Component
-from .data_abstraction import GETTERS, SETTERS
 from .exceptions import ComponentError
 
 
@@ -57,9 +56,6 @@ class LocIndexer:
             self._set_column(col, index, val[col])
 
     def _set_column(self, column, index, values):
-        if column in SETTERS:
-            SETTERS[column](self.world, index, values)
-            return
         self.world._dict[column] = _set_series_values(
             self.world._dict[column], index, values)
 
@@ -112,20 +108,6 @@ class World:
         if isinstance(key, list):
             # Virtual components (@gets) aren't in the archetype system; fall back
             # to the concat approach so their getters are called correctly.
-            if any(
-                (isinstance(k, Exclude) and k.component in GETTERS) or
-                (not isinstance(k, Exclude) and k in GETTERS)
-                for k in key
-            ):
-                dfs = []
-                for k in key:
-                    res = self._get(k)
-                    if len(res.index) == 0:
-                        return pd.DataFrame(
-                            {}, index=[], columns=self._determine_columns(key))
-                    dfs.append(res)
-                return pd.concat(dfs, join='inner', axis=1, copy=False)
-
             includes = [k for k in key if not isinstance(k, Exclude)]
             if not includes:
                 return EntityView(pd.Index([]), {})
@@ -155,8 +137,6 @@ class World:
         if key not in self._dict:
             self._initialize(key)
         if isinstance(key, Component):
-            if key in GETTERS:
-                return GETTERS[key](self)
             return self._dict[key]
 
         raise ComponentError("Not a valid Component:", key)
