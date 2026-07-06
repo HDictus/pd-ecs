@@ -109,9 +109,6 @@ class World:
 
     def __getitem__(self, key):
         """Get data for components."""
-        return self._get(key)
-
-    def _get(self, key):
         if isinstance(key, list):
             # Virtual components (@gets) aren't in the archetype system; fall back
             # to the concat approach so their getters are called correctly.
