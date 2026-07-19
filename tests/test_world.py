@@ -393,6 +393,50 @@ def test_world_give_overwrites_existing_component():
     assert np.allclose(qry[comp2], [1, 2, 3])
 
 
+def test_world_give_relocates_existing_sibling_components():
+    """Giving a new component to an entity changes its archetype, which must
+    also relocate that entity's row within components it already had, not
+    just the newly given one -- otherwise the fast multi-component path
+    (which slices storage positionally via archetype ranges) reads garbage."""
+    comp1 = Component('a')
+    comp2 = Component('b')
+    comp3 = Component('c')
+    world = World()
+    world.add_entities({comp1: [10, 20], comp2: [100, 200]})  # entities 0,1: comp1+comp2
+    world.add_entities({comp1: [30]})                          # entity 2: comp1 only
+
+    world.give([2], {comp3: [999]})  # entity 2: comp1+comp3 (a brand new archetype)
+
+    qry = world[[comp1, comp3]]
+    assert list(qry.index) == [2]
+    assert np.allclose(qry[comp1], [30])
+    assert np.allclose(qry[comp3], [999])
+
+    # comp1's storage for the untouched entities must still be intact too.
+    qry2 = world[[comp1, comp2]]
+    assert list(qry2.index) == [0, 1]
+    assert np.allclose(qry2[comp1], [10, 20])
+    assert np.allclose(qry2[comp2], [100, 200])
+
+
+def test_world_take_relocates_existing_sibling_components():
+    """Losing a component also changes an entity's archetype, so its other
+    components must be relocated too, checked via the positional fast path."""
+    comp1 = Component('a')
+    comp2 = Component('b')
+    comp3 = Component('c')
+    world = World()
+    world.add_entities({comp1: [10, 20], comp2: [100, 200]})               # entities 0,1
+    world.add_entities({comp1: [30], comp2: [300], comp3: [3000]})         # entity 2
+
+    world.take([2], comp3)  # entity 2 drops back to the comp1+comp2 archetype
+
+    qry = world[[comp1, comp2]]
+    assert list(qry.index) == [0, 1, 2]
+    assert np.allclose(qry[comp1], [10, 20, 30])
+    assert np.allclose(qry[comp2], [100, 200, 300])
+
+
 def test_world_take_component_not_present_is_noop():
     comp1 = Component('a')
     comp2 = Component('b')

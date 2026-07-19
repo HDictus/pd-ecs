@@ -93,16 +93,6 @@ class World:
             self._idxmx = self.maxind
         return self._index
 
-    def _sort(self, comp):
-        """Re-sort a component's storage by archetype bitmask then entity id."""
-        series = self._dict[comp]
-        if series.empty:
-            return
-        eids = series.index.to_numpy()
-        masks = self._archs.series.reindex(series.index, fill_value=0)
-        order = np.lexsort((eids, masks.to_numpy()))
-        self._dict[comp] = series.iloc[order]
-
     def __getitem__(self, key):
         """Get data for components."""
         if isinstance(key, list):
@@ -168,7 +158,7 @@ class World:
         for component in state:
             _validate_component(component)
         # Rebuild archetype store from scratch before adding any data so that
-        # _sort has complete bitmask information from the start.
+        # component insertion has complete bitmask information from the start.
         self._archs = ArchetypeStore()
         all_eids = sorted({eid for data in state.values() for eid in data.index})
         if all_eids:
@@ -231,14 +221,91 @@ class World:
             keep = ~np.isin(existing.index.to_numpy(), eids)
             if not keep.all():
                 existing = existing[keep]
-        self._dict[comp] = _append_series(existing, comp, eids, values_arr)
-        self._sort(comp)
+        self._dict[comp] = self._splice_component(comp, existing, eids, values_arr)
+
+    def _splice_component(self, comp, existing, new_eids, new_values):
+        """Insert (new_eids, new_values) into `existing`'s storage, keeping it
+        ordered by (archetype, eid), by shifting the surrounding entries into
+        place instead of re-sorting entries that are already correctly placed.
+        """
+        new_eids = np.asarray(new_eids)
+        new_values = np.asarray(new_values)
+
+        # The incoming batch is (usually) small, so sorting just this slice by
+        # its final (archetype, eid) key -- rather than the whole array -- is
+        # what makes inserting it into the existing, already-sorted storage
+        # cheap. This sort must happen regardless of whether `existing` has
+        # any data, since a batch spanning multiple archetypes isn't
+        # necessarily eid-ordered.
+        new_keys = _archetype_sort_key(self._lookup_masks(new_eids), new_eids)
+        order = np.argsort(new_keys, kind='stable')
+        new_eids = new_eids[order]
+        new_values = new_values[order]
+        new_keys = new_keys[order]
+
+        if existing is None or existing.empty:
+            return _new_series(comp, new_eids, new_values)
+
+        dtype = existing.dtype
+        if not np.can_cast(new_values.dtype, dtype, casting='safe'):
+            dtype = np.result_type(dtype, new_values.dtype)
+            existing = existing.astype(dtype)
+        new_values = new_values.astype(dtype)
+
+        existing_eids = existing.index.to_numpy()
+        existing_keys = _archetype_sort_key(self._lookup_masks(existing_eids), existing_eids)
+
+        positions = np.searchsorted(existing_keys, new_keys, side='right')
+        out_eids = np.insert(existing_eids, positions, new_eids)
+        out_values = np.insert(existing.to_numpy(), positions, new_values)
+        return pd.Series(out_values, index=pd.Index(out_eids, dtype=np.int64), name=comp)
+
+    def _lookup_masks(self, eids):
+        """Positional archetype-bitmask lookup for `eids` (all assumed present).
+
+        Plain positional indexing via get_indexer is markedly cheaper than
+        Series.reindex/.loc, which both run label-uniqueness bookkeeping we
+        don't need here.
+        """
+        archs = self._archs.series
+        positions = archs.index.get_indexer(eids)
+        return archs.to_numpy()[positions]
+
+    def _relocate_siblings(self, ids, old_masks, skip):
+        """After `ids`'s archetype bitmasks changed, physically move their rows
+        within every OTHER component they already have, so that component's
+        storage stays ordered by (archetype, eid) -- without a full re-sort.
+        """
+        new_masks = self._lookup_masks(ids)
+        changed = old_masks != new_masks
+        if not np.any(changed):
+            return
+        moved_ids = ids[changed]
+        for comp in self._archs._component_powers:
+            if comp in skip:
+                continue
+            series = self._dict.get(comp)
+            if series is None or series.empty:
+                continue
+            series_eids = series.index.to_numpy()
+            # Boolean masking (not get_indexer/.loc) avoids paying for an
+            # index-uniqueness check on this component's storage.
+            is_moving = np.isin(series_eids, moved_ids)
+            if not is_moving.any():
+                continue
+            relocating = series_eids[is_moving]
+            values = series.to_numpy()[is_moving]
+            remaining = series[~is_moving]
+            self._dict[comp] = self._splice_component(comp, remaining, relocating, values)
 
     def give(self, ids, components):
         """Add given components to entities corresponding to ids."""
         ids = np.asarray([ids]) if np.isscalar(ids) else np.asarray(ids)
+        old_masks = self._lookup_masks(ids)
+        given = set(components)
         for comp in components:
             self._archs.add_component(ids, comp)
+        self._relocate_siblings(ids, old_masks, given)
         frames = _component_series(components, indices=ids)
         for comp, series in frames.items():
             self._add_component(comp, series, ids)
@@ -247,6 +314,7 @@ class World:
         """Remove given components from entities corresponding to ids."""
         ids = np.asarray([ids]) if np.isscalar(ids) else np.asarray(ids)
         taken_set = set(components)
+        old_masks = self._lookup_masks(ids)
         for component in components:
             if component in self._dict:
                 series = self._dict[component]
@@ -255,17 +323,7 @@ class World:
                     self._dict[component] = series[~mask]
             if component in self._archs._component_powers:
                 self._archs.remove_component(ids, component)
-        # Re-sort only components that the affected entities still possess.
-        # Read their current bitmasks from the archetype store (already updated
-        # above) instead of scanning every component storage with np.isin.
-        if len(ids) and self._archs._component_powers:
-            pos = self._archs.series.index.get_indexer(ids)
-            valid = pos[pos >= 0]
-            if len(valid):
-                affected_bits = int(np.bitwise_or.reduce(self._archs.series.values[valid]))
-                for comp, pw2 in self._archs._component_powers.items():
-                    if comp not in taken_set and comp in self._dict and (affected_bits & int(pw2)):
-                        self._sort(comp)
+        self._relocate_siblings(ids, old_masks, taken_set)
 
     def remove_entities(self, ids):
         """
@@ -312,17 +370,17 @@ def _new_series(comp, eids, values_arr):
         values_arr.astype(dtype), index=pd.Index(eids, dtype=np.int64), name=comp)
 
 
-def _append_series(existing, comp, eids, values_arr):
-    """Concatenate new (eids, values) onto an existing component Series, if any."""
-    if existing is None or existing.empty:
-        return _new_series(comp, eids, values_arr)
-    dtype = existing.dtype
-    if not np.can_cast(values_arr.dtype, dtype, casting='safe'):
-        dtype = np.result_type(dtype, values_arr.dtype)
-        existing = existing.astype(dtype)
-    new_series = pd.Series(
-        values_arr.astype(dtype), index=pd.Index(eids, dtype=np.int64), name=comp)
-    return pd.concat([existing, new_series])
+def _archetype_sort_key(archs, eids):
+    """Combined ascending key matching (archetype bitmask, eid) order, so a
+    plain 1-D searchsorted can find insertion points without re-sorting
+    entries that are already correctly placed.
+
+    Assumes eid < 2**32 (comfortably covers realistic entity counts), which
+    leaves the high bits free for the (<=32-bit) archetype bitmask.
+    """
+    eids = np.asarray(eids, dtype=np.uint64)
+    archs = np.asarray(archs, dtype=np.uint64)
+    return (archs << np.uint64(32)) | eids
 
 
 def _set_series_values(series, key, values):
