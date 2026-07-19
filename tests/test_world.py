@@ -108,14 +108,14 @@ def test_world_add_entities():
 
     newentities_index = world[component2].index
     assert not any(np.isin(newentities_index, world[component1].index))
-    assert new == [4, 5, 6]
+    assert list(new) == [4, 5, 6]
 
     # check that this also works with dataframes
     new = world.add_entities(
         pd.DataFrame({component2:  [1, 8, 9]}))
 
     assert all(world[component2].loc[new] == [1, 8, 9])
-    assert new == [7, 8, 9]
+    assert list(new) == [7, 8, 9]
 
 
 def test_world_add_entities_array():

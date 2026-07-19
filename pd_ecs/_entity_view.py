@@ -40,6 +40,8 @@ class EntityView:
     by slicing the backing numpy arrays of each component's Series.
     """
 
+    # TODO: should just accept arrays, not slices
+    # what a mess I'm left to clean up
     def __init__(self, index, slices):
         """
         index:  pd.Index of matching entity IDs
@@ -124,8 +126,9 @@ class _EntityViewLoc:
                 {comp: self._view[comp].iloc[pos] for comp in self._view._slices},
                 name=key,
             )
+        data = {comp: self._view[comp].loc[key] for comp in self._view._slices}
         return pd.DataFrame(
-            {comp: self._view[comp].loc[key] for comp in self._view._slices},
+            data,
             index=pd.Index(key),
         )
 
