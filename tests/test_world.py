@@ -437,6 +437,107 @@ def test_world_take_relocates_existing_sibling_components():
     assert np.allclose(qry[comp2], [100, 200, 300])
 
 
+def test_world_give_overwrite_with_simultaneous_archetype_change():
+    """Overwriting a component's value while a second, brand-new component is
+    given in the same call moves the entity to a new archetype block *and*
+    replaces its old value -- exercising the boundary-shift adjustment for a
+    row that's simultaneously being removed (old value) and inserted
+    (new value) relative to the pre-batch range snapshot."""
+    comp1 = Component('a')
+    comp2 = Component('b')
+    comp3 = Component('c')
+    world = World()
+    world.add_entities({comp1: [10, 20], comp2: [100, 200]})  # entities 0,1: {comp1,comp2}
+    world.add_entities({comp1: [30]})                          # entity 2: {comp1} only
+
+    # entity 2 already has comp1 (overwritten) and is newly given comp3
+    # (archetype {comp1} -> {comp1,comp3}).
+    world.give([2], {comp1: [999], comp3: [777]})
+
+    qry = world[[comp1, comp3]]
+    assert list(qry.index) == [2]
+    assert np.allclose(qry[comp1], [999])
+    assert np.allclose(qry[comp3], [777])
+
+    # entities 0,1 (a different, untouched archetype) must be intact.
+    qry2 = world[[comp1, comp2]]
+    assert list(qry2.index) == [0, 1]
+    assert np.allclose(qry2[comp1], [10, 20])
+    assert np.allclose(qry2[comp2], [100, 200])
+
+
+def test_world_give_batch_spans_multiple_destination_archetypes():
+    """A single give() call whose entities start in different archetypes can
+    land in different destination archetypes too -- the insertion must group
+    by each row's own destination, not assume the whole batch shares one."""
+    comp1 = Component('a')
+    comp2 = Component('b')
+    comp3 = Component('c')
+    world = World()
+    world.add_entities({comp1: [1]})  # entity 0: {comp1}
+    world.add_entities({comp2: [2]})  # entity 1: {comp2}
+
+    world.give([0, 1], {comp3: [30, 31]})  # entity0->{comp1,comp3}, entity1->{comp2,comp3}
+
+    assert list(world[[comp1, comp3]].index) == [0]
+    assert np.allclose(world[[comp1, comp3]][comp1], [1])
+    assert np.allclose(world[[comp1, comp3]][comp3], [30])
+
+    assert list(world[[comp2, comp3]].index) == [1]
+    assert np.allclose(world[[comp2, comp3]][comp2], [2])
+    assert np.allclose(world[[comp2, comp3]][comp3], [31])
+
+
+def test_world_give_multiple_components_causes_multi_hop_transition():
+    """Giving two brand-new components in one call moves the entity through
+    two archetype hops (old -> old+A -> old+A+B). A sibling component the
+    entity already had must end up relocated to reflect the FINAL archetype,
+    and the newly given components must land there too, even though their
+    ranges get touched twice within the same call."""
+    comp1 = Component('a')
+    comp2 = Component('b')
+    comp4 = Component('d')
+    world = World()
+    world.add_entities({comp1: [1, 2, 3], comp2: [10, 20, 30]})  # entities 0,1,2: {comp1,comp2}
+    world.add_entities({comp1: [4]})                              # entity 3: {comp1} only
+
+    world.give([3], {comp2: [40], comp4: [400]})  # {comp1} -> {comp1,comp2} -> {comp1,comp2,comp4}
+
+    qry = world[[comp1, comp2]]
+    assert list(qry.index) == [0, 1, 2, 3]
+    assert np.allclose(qry[comp1], [1, 2, 3, 4])
+    assert np.allclose(qry[comp2], [10, 20, 30, 40])
+
+    assert list(world[comp4].index) == [3]
+    assert np.allclose(world[comp4].values, [400])
+
+
+def test_world_set_state_sorts_component_across_multiple_archetypes():
+    """set_state loads all entities/components in one shot; the resulting
+    per-component storage must still end up ordered by (archetype, eid) even
+    though the input series were given in arbitrary index order."""
+    comp1 = Component('a')
+    comp2 = Component('b')
+    comp3 = Component('c')
+    world = World()
+
+    world.set_state({
+        comp1: pd.Series({3: 10, 0: 20, 2: 30, 1: 40}),  # entity 3: {comp1} only
+        comp2: pd.Series({0: 100, 2: 200}),               # entities 0,2: {comp1,comp2}
+        comp3: pd.Series({1: 1000}),                      # entity 1: {comp1,comp3}
+    })
+
+    # Ascending archetype order: {comp1}=1 (entity 3), {comp1,comp2}=3 (entities 0,2),
+    # {comp1,comp3}=5 (entity 1).
+    assert list(world[comp1].index) == [3, 0, 2, 1]
+    assert np.allclose(world[comp1].values, [10, 20, 30, 40])
+
+    qry = world[[comp1, comp2]]
+    assert list(qry.index) == [0, 2]
+    assert np.allclose(qry[comp1], [20, 30])
+    assert np.allclose(qry[comp2], [100, 200])
+
+
 def test_world_take_component_not_present_is_noop():
     comp1 = Component('a')
     comp2 = Component('b')

@@ -90,6 +90,40 @@ class ArchetypeStore:
         pos = int(np.searchsorted(archs, arch))
         return int(starts[pos]), int(stops[pos])
 
+    def range_snapshot(self, comps):
+        """Copy the current (archs, starts, stops) arrays for `comps`.
+
+        `_range_add`/`_range_remove` mutate the live arrays in place for an
+        already-present archetype, so a plain reference isn't a safe "before
+        this batch" snapshot -- callers that need to look up boundaries as
+        they stood before a series of archetype mutations (e.g. a multi-hop
+        `give`) should snapshot first and look up via `range_lookup_in`.
+        """
+        empty = (
+            np.array([], dtype=np.int64),
+            np.array([], dtype=np.int64),
+            np.array([], dtype=np.int64),
+        )
+        return {
+            comp: tuple(arr.copy() for arr in self._ranges.get(comp, empty))
+            for comp in comps
+        }
+
+    def range_lookup_in(self, snapshot, arch):
+        """Like `range_lookup`, but against a snapshot from `range_snapshot`.
+
+        If `arch` wasn't present in the snapshot, returns an empty range at
+        the boundary where it would sort in -- the natural "nothing here yet"
+        answer for an archetype that only came into existence after the
+        snapshot was taken.
+        """
+        archs, starts, stops = snapshot
+        pos = int(np.searchsorted(archs, arch))
+        if pos < len(archs) and archs[pos] == arch:
+            return int(starts[pos]), int(stops[pos])
+        boundary = int(stops[pos - 1]) if pos > 0 else 0
+        return boundary, boundary
+
     def _compute_transitions(self, old_values, new_values):
         """Return {(old_arch, new_arch): count} for entities whose arch changed."""
         changed = old_values != new_values
