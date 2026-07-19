@@ -285,11 +285,17 @@ class World:
         new_eids = np.asarray(new_eids)
         new_values = np.asarray(new_values)
         dest_archs = np.asarray(dest_archs)
+        uniform = dest_archs.size == 0 or (dest_archs == dest_archs[0]).all()
 
         if existing is None or existing.empty:
             # No pre-existing data for comp -- just sort this (small) batch
-            # by its own final (archetype, eid) key.
-            order = np.lexsort((new_eids, dest_archs))
+            # by its own final (archetype, eid) key. When the whole batch
+            # shares one archetype (the common case -- see `uniform` below),
+            # that key is just the eid.
+            order = (
+                np.argsort(new_eids, kind='stable') if uniform
+                else np.lexsort((new_eids, dest_archs))
+            )
             return _new_series(comp, new_eids[order], new_values[order])
 
         dtype = existing.dtype
@@ -301,24 +307,38 @@ class World:
         existing_eids = existing.index.to_numpy()
         existing_values = existing.to_numpy()
 
-        order = np.lexsort((new_eids, dest_archs))
-        new_eids = new_eids[order]
-        new_values = new_values[order]
-        dest_archs = dest_archs[order]
-
         snapshot = ranges_snapshot.get(comp) if ranges_snapshot else None
         if snapshot is None:
             empty = np.array([], dtype=np.int64)
             snapshot = (empty, empty, empty)
 
-        positions = np.empty(len(new_eids), dtype=np.int64)
-        unique_archs, group_starts = np.unique(dest_archs, return_index=True)
-        bounds = list(group_starts) + [len(dest_archs)]
-        for i, arch in enumerate(unique_archs):
-            lo, hi = bounds[i], bounds[i + 1]
-            start, stop = self._archs.range_lookup_in(snapshot, int(arch))
-            positions[lo:hi] = start + np.searchsorted(
-                existing_eids[start:stop], new_eids[lo:hi], side='right')
+        if uniform:
+            # Common case: every row in this batch lands in the same
+            # archetype (e.g. a bulk give()/take() moving one whole cohort
+            # from archetype A to archetype B) -- skip the per-archetype
+            # grouping machinery (which costs one extra small numpy call per
+            # distinct archetype, multiplied by every component touched) and
+            # go straight to a single lookup + a single local search.
+            order = np.argsort(new_eids, kind='stable')
+            new_eids = new_eids[order]
+            new_values = new_values[order]
+            arch = int(dest_archs[0]) if dest_archs.size else 0
+            start, stop = self._archs.range_lookup_in(snapshot, arch)
+            positions = start + np.searchsorted(
+                existing_eids[start:stop], new_eids, side='right')
+        else:
+            order = np.lexsort((new_eids, dest_archs))
+            new_eids = new_eids[order]
+            new_values = new_values[order]
+            dest_archs = dest_archs[order]
+            positions = np.empty(len(new_eids), dtype=np.int64)
+            unique_archs, group_starts = np.unique(dest_archs, return_index=True)
+            bounds = list(group_starts) + [len(dest_archs)]
+            for i, arch in enumerate(unique_archs):
+                lo, hi = bounds[i], bounds[i + 1]
+                start, stop = self._archs.range_lookup_in(snapshot, int(arch))
+                positions[lo:hi] = start + np.searchsorted(
+                    existing_eids[start:stop], new_eids[lo:hi], side='right')
 
         if remove_positions is not None and len(remove_positions):
             remove_positions = np.sort(remove_positions)
@@ -343,6 +363,15 @@ class World:
         than a full-array scan. Assumes every eid is actually present in the
         block implied by its `old_archs` entry.
         """
+        if old_archs.size == 0 or (old_archs == old_archs[0]).all():
+            # Common case (e.g. a bulk give()/take() moving one whole
+            # cohort out of a single archetype): one lookup, one search --
+            # searchsorted doesn't need `eids` pre-sorted since we're only
+            # looking positions up, not merging, so no grouping/sort needed.
+            arch = int(old_archs[0]) if old_archs.size else 0
+            start, stop = self._archs.range_lookup_in(snapshot, arch)
+            return start + np.searchsorted(existing_eids[start:stop], eids)
+
         order = np.argsort(old_archs, kind='stable')
         sorted_eids = eids[order]
         positions = np.empty(len(eids), dtype=np.int64)
