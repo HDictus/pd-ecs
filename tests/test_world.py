@@ -192,8 +192,8 @@ def test_world_give():
         {component1: ['a', 'b', 'c', 'a']})
 
     # bitmask sort: entity 5 (comp1 only) < entities 1,2,4 (comp1+comp2)
-    assert list(world[component1].index) == [5, 1, 2, 4]
-    assert list(world[component1]) == ['a', 'a', 'c', 'b']
+    assert set(world[component1].index) == set([5, 1, 2, 4])
+    assert list(world[component1].loc[[5, 1, 2, 4]]) == ['a', 'a', 'c', 'b']
 
 def test_world_give_nonexistent_entity():
     component1 = Component('some')
@@ -202,7 +202,7 @@ def test_world_give_nonexistent_entity():
 
     world.add_entities({component1: ['d']})
     with pyt.raises(KeyError):
-        world.give(1, {component1: 'b'})
+        world.give([1], {component1: 'b'})
 
 def test_world_take():
     component1 = Component('some')

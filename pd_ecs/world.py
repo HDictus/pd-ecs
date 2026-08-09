@@ -13,7 +13,7 @@ import numpy as np
 import pandas as pd
 from lazy import lazy
 
-from ._archetype_store import ArchetypeStore
+from ._archetype_manager import ArchetypeManager
 from ._entity_view import EntityView
 from ._filter_ops import Exclude
 from .component import Component
@@ -53,6 +53,7 @@ class World:
         # making custom state impls easy.
         self._state = {}
         self.maxind = 0
+        self.archetypes = ArchetypeManager()
 
     @lazy
     def loc(self):
@@ -64,11 +65,11 @@ class World:
 
         entities_df: dataframe or dict containing their components
         """
-        archetype = tuple(entities_df.keys())
-        entities_df = pd.DataFrame(entities_df)
+        entities_df = _coerce_entity_dataframe(entities_df)
         initmax = self.maxind
         self.maxind += len(entities_df)
         entities_df.set_index(pd.RangeIndex(initmax, self.maxind), inplace=True)
+        archetype = self.archetypes.add_entities(entities_df)
         if archetype not in self._state:
             self._state[archetype] = entities_df
         else:
@@ -109,6 +110,25 @@ class World:
     def _ats_in_filt(self, filt):
         return [at for at in self._state if _at_in_filt(at, filt)]
 
+    def give(self, entities, components):
+        # TODO: consider sorting by archetype allowing slicing?
+        components = _coerce_entity_dataframe(components, entities)
+        transitions = self.archetypes.give(entities, components.columns)
+        for (oldat, newat), eids in transitions:
+            if oldat == newat:
+                self._state[newat].loc[eids, components.columns] = components.loc[eids]
+                continue
+            # TODO: create an abstraction for the state and call a method here
+            new_state = pd.concat([
+                self._state[oldat].loc[eids],
+                components.loc[eids]
+            ], axis=1)
+            if newat not in self._state:
+                self._state[newat] = new_state
+            else:
+                self._state[newat] = pd.concat([self._state[newat], new_state], axis=0)
+            self._state[oldat] = self._state[oldat].drop(eids)
+
 
 def _at_in_filt(archetype, filt):
     # TODO: filtering should probably also have its own module
@@ -132,6 +152,13 @@ def _component_series(components, indices):
         comp: pd.Series(_get_values(ser), index=indices)
         for comp, ser in components.items()
     }
+
+
+def _coerce_entity_dataframe(entity_df, eids=None):
+    df = pd.DataFrame(entity_df, index=eids)
+    for col in df:
+        _validate_component(col)
+    return df
 
 
 def _validate_component(comp):
