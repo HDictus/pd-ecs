@@ -112,10 +112,26 @@ class World:
         return [at for at in self._state if _at_in_filt(at, filt)]
 
     def give(self, entities, components):
+        """Add components to entities.
+        Arguments:
+            entities: ids of entities
+            components: dataframe or similar of component values
+        """
         # TODO: consider sorting by archetype allowing slicing?
         components = _coerce_entity_dataframe(components, entities)
         transitions = self.archetypes.give(entities, components.columns)
         self._state.give(transitions, components)
+
+    def take(self, entities, components):
+        """Remove components from entities.
+        Arguments:
+            entities: ids of entities
+            components: iterable of components to remove
+        """
+        if isinstance(components, Component):
+            components = [components]
+        transitions = self.archetypes.take(entities, components)
+        self._state.take(transitions)
 
 
 def _at_in_filt(archetype, filt):

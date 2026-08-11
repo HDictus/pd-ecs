@@ -45,3 +45,16 @@ class ArchetypeManager:
             if bitmask & pow2:
                 out.append(comp)
         return tuple(out)
+
+    def take(self, entities, components):
+        entity_atypes = self.series.loc[entities]
+        new_atypes = entity_atypes & ~self._archetype_to_bitmask(components)
+        self.series[entities] = new_atypes
+        # TODO: some code duplication here
+        for nat, oat in entity_atypes.groupby(new_atypes):
+            if nat == oat.values[0]:
+                continue
+            yield (
+                self._bitmask_to_archetype(oat.iloc[0]),
+                self._bitmask_to_archetype(nat)
+                ), oat.index

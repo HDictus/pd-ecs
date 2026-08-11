@@ -372,7 +372,7 @@ def test_world_take_component_partially_not_present_is_noop():
         pd.Series([5, 6], index=[1, 2], name=comp2)
     )
     pd.testing.assert_series_equal(
-        world[comp1],
+        world[comp1].sort_index(),
         pd.Series([1, 2, 3], name=comp1)
     )
 

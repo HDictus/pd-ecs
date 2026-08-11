@@ -27,3 +27,12 @@ class WorldState(dict):
             else:
                 self[newat] = pd.concat([self[newat], new_state], axis=0)
             self[oldat] = self[oldat].drop(eids)
+
+    def take(self, transitions):
+        for (oldat, newat), eids in transitions:
+            oldstate = self[oldat].loc[eids]
+            if newat in self:
+                self[newat] = pd.concat([self[newat], oldstate], axis=0)
+            else:
+                self[newat] = oldstate
+            self[oldat] = self[oldat].drop(eids)
