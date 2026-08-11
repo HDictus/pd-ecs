@@ -16,6 +16,7 @@ from lazy import lazy
 from ._archetype_manager import ArchetypeManager
 from ._entity_view import EntityView
 from ._filter_ops import Exclude
+from ._state import WorldState
 from .component import Component
 from .exceptions import ComponentError
 
@@ -51,7 +52,7 @@ class World:
         # that probably composes other things (e.g. eventmanager)
         # nice idea: state uses observer pattern
         # making custom state impls easy.
-        self._state = {}
+        self._state = WorldState()
         self.maxind = 0
         self.archetypes = ArchetypeManager()
 
@@ -114,20 +115,7 @@ class World:
         # TODO: consider sorting by archetype allowing slicing?
         components = _coerce_entity_dataframe(components, entities)
         transitions = self.archetypes.give(entities, components.columns)
-        for (oldat, newat), eids in transitions:
-            if oldat == newat:
-                self._state[newat].loc[eids, components.columns] = components.loc[eids]
-                continue
-            # TODO: create an abstraction for the state and call a method here
-            new_state = pd.concat([
-                self._state[oldat].loc[eids],
-                components.loc[eids]
-            ], axis=1)
-            if newat not in self._state:
-                self._state[newat] = new_state
-            else:
-                self._state[newat] = pd.concat([self._state[newat], new_state], axis=0)
-            self._state[oldat] = self._state[oldat].drop(eids)
+        self._state.give(transitions, components)
 
 
 def _at_in_filt(archetype, filt):
