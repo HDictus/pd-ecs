@@ -138,6 +138,61 @@ class World:
             self._state[archetype] = self._state[archetype].drop(eids)
         self.archetypes.remove_entities(entities)
 
+    def set_state(self, state: Dict[Component, pd.Series]):
+        """Replace the world's entire state from a mapping of components to series.
+
+        Legacy method: mostly used for testing purposes.
+        Each series may carry its own (possibly partial, non-contiguous)
+        index. An entity's archetype is inferred from which of the given
+        series contain that entity's id: e.g. if entity 5 appears in
+        comp1's and comp3's index but not comp2's, its archetype is
+        (comp1, comp3).
+
+        Arguments:
+            state: dict mapping Component -> pd.Series of values, indexed
+                by entity id.
+        """
+        for comp in state:
+            _validate_component(comp)
+
+        components = list(state.keys())
+        if not components:
+            self._state.clear()
+            self.archetypes.series = pd.Series(dtype=np.int64)
+            return
+
+        # union of every entity id mentioned in any component's series
+        all_ids = pd.Index([], dtype=np.int64)
+        for ser in state.values():
+            all_ids = all_ids.union(ser.index)
+
+        # Bitmask-encode archetype membership: OR together the bit for
+        # every component whose series contains a given entity. This is
+        # the same bitmask scheme ArchetypeManager uses for give/take,
+        # so entities can be grouped into archetypes with a single
+        # vectorized groupby instead of a per-entity python loop.
+        # `_get_power` assigns bits in `components` order (for any not
+        # already registered), matching the order `_bitmask_to_archetype`
+        # will later reconstruct tuples in.
+        bitmask = pd.Series(0, index=all_ids, dtype=np.int64)
+        for comp in components:
+            power = self.archetypes._get_power(comp)
+            present = all_ids.isin(state[comp].index)
+            bitmask += present * power
+
+        self._state.clear()
+        for mask, group in bitmask.groupby(bitmask):
+            eids = group.index
+            archetype = self.archetypes._bitmask_to_archetype(mask)
+            self._state[archetype] = pd.DataFrame(
+                {comp: state[comp].loc[eids] for comp in archetype},
+                index=eids,
+            )
+
+        self.archetypes.series = bitmask
+        self.maxind = int(all_ids.max()) + 1
+
+
 
 def _at_in_filt(archetype, filt):
     # TODO: filtering should probably also have its own module
