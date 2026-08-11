@@ -133,6 +133,11 @@ class World:
         transitions = self.archetypes.take(entities, components)
         self._state.take(transitions)
 
+    def remove_entities(self, entities):
+        for archetype, eids in self.archetypes.group(entities):
+            self._state[archetype] = self._state[archetype].drop(eids)
+        self.archetypes.remove_entities(entities)
+
 
 def _at_in_filt(archetype, filt):
     # TODO: filtering should probably also have its own module

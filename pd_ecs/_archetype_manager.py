@@ -58,3 +58,12 @@ class ArchetypeManager:
                 self._bitmask_to_archetype(oat.iloc[0]),
                 self._bitmask_to_archetype(nat)
                 ), oat.index
+
+    def group(self, entities):
+        """Group entities by archetype and iterate over groups."""
+        archetypes = self.series[entities]
+        for at, atypes in archetypes.groupby(archetypes):
+            yield self._bitmask_to_archetype(at), atypes.index
+
+    def remove_entities(self, entities):
+        self.series = self.series.drop(entities)
