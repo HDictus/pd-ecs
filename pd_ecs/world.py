@@ -35,6 +35,21 @@ class LocIndexer:
                 "Loc indexing without components is not supported.")
         return self.world[key[1]].loc[key[0]]
 
+    def __setitem__(self, key, values):
+        if not isinstance(key, tuple):
+            raise ValueError(
+                "Loc indexing without components is not supported")
+        entities, components = key
+        if pd.api.types.is_scalar(entities):
+            atype = self.world.archetypes.get(entities)
+            self.world._state[atype].loc[key] = values
+            return
+        if not isinstance(components, list):
+            components = [components]
+        df = pd.DataFrame(values, columns=components, index=entities)
+        for atype, eids in self.world.archetypes.group(entities):
+            self.world._state[atype].loc[eids, components] = df.loc[eids]
+
 
 class World:
     """

@@ -67,3 +67,6 @@ class ArchetypeManager:
 
     def remove_entities(self, entities):
         self.series = self.series.drop(entities)
+
+    def get(self, entity):
+        return self._bitmask_to_archetype(self.series[entity])
