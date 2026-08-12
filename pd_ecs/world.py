@@ -50,6 +50,12 @@ class LocIndexer:
         for atype, eids in self.world.archetypes.group(entities):
             self.world._state[atype].loc[eids, components] = df.loc[eids]
 
+    def __delitem__(self, key):
+        if isinstance(key, tuple):
+            self.world.take(key[0], key[1])
+        else:
+            self.world.remove_entities(key)
+
 
 class World:
     """
@@ -75,6 +81,10 @@ class World:
     def loc(self):
         """Loc indexer, like pandas.DataFrame.loc."""
         return LocIndexer(self)
+
+    @property
+    def index(self):
+        return self.archetypes.series.index
 
     def add_entities(self, entities_df: dict):
         """Add entities to the world.
@@ -143,6 +153,8 @@ class World:
             entities: ids of entities
             components: iterable of components to remove
         """
+        if pd.api.types.is_scalar(entities):
+            entities = [entities]
         if isinstance(components, Component):
             components = [components]
         transitions = self.archetypes.take(entities, components)
