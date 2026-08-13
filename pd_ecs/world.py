@@ -47,15 +47,22 @@ class LocIndexer:
         if not isinstance(components, list):
             components = [components]
         df = pd.DataFrame(values, columns=components, index=entities)
-        for atype, eids in self.world.archetypes.group(entities):
-            self.world._state[atype].loc[eids, components] = df.loc[eids]
+        self.world.update(df)
 
     def __delitem__(self, key):
         if isinstance(key, tuple):
-            self.world.take(key[0], key[1])
+            eids, comps = key
+            if isinstance(comps, Component):
+                comps = [comps]
+            self.world.take(eids, *comps)
         else:
             self.world.remove_entities(key)
 
+
+# TODO: the tests were inadequate to guarantee continued functionality
+#   firstly, the syntax of take was incorrect (did not use *components)
+# secondly, old archetype does not always exist in take (?)
+# thirdly, overlapping index in concat
 
 class World:
     """
@@ -147,7 +154,7 @@ class World:
         transitions = self.archetypes.give(entities, components.columns)
         self._state.give(transitions, components)
 
-    def take(self, entities, components):
+    def take(self, entities, *components):
         """Remove components from entities.
         Arguments:
             entities: ids of entities
@@ -219,6 +226,10 @@ class World:
         self.archetypes.series = bitmask
         self.maxind = int(all_ids.max()) + 1
 
+    def update(self, df):
+        for atype, eids in self.archetypes.group(df.index):
+            self._state[atype].loc[eids, df.columns] = df.loc[eids]
+
 
 
 def _at_in_filt(archetype, filt):
@@ -246,6 +257,8 @@ def _component_series(components, indices):
 
 
 def _coerce_entity_dataframe(entity_df, eids=None):
+    if eids is not None and pd.api.types.is_scalar(eids):
+        eids = [eids]
     df = pd.DataFrame(entity_df, index=eids)
     for col in df:
         _validate_component(col)
