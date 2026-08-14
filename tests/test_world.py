@@ -359,6 +359,20 @@ def test_world_take_component_not_present_is_noop():
         pd.Series([1, 2, 3], name=comp1)
     )
 
+def test_world_take_multi():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1, 2, 3], comp2: [1, 2, 3]})
+    world.take([0], comp1, comp2)
+    pd.testing.assert_frame_equal(
+        world[[comp1, comp2]].to_frame(),
+        pd.DataFrame(
+            {comp1: [2, 3], comp2: [2, 3]},
+            index=[1, 2]
+        )
+    )
+
 
 def test_world_take_component_partially_not_present_is_noop():
     comp1 = Component('a')
@@ -622,3 +636,27 @@ def test_entity_view_loc_setitem_list_rows_list_cols():
         world[comp2], pd.Series([40.0, 20.0, 60.0], name=comp2)
     )
 
+
+def test_world_update():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1.0, 2.0, 3.0], comp2: [10.0, 20.0, 30.0]})
+    world.update(pd.DataFrame({comp1: [2.0, 1.0], comp2: [1.0, 1.0]}))
+    pd.testing.assert_frame_equal(
+        world[[comp1, comp2]].to_frame(),
+        pd.DataFrame({
+            comp1: [2.0, 1.0, 3.0],
+            comp2: [1.0, 1.0, 30.0]})
+    )
+
+
+def test_world_take_does_not_stale():
+    # in a previous version, take left stale versions of the taken data
+    # in the new dataframe, leading to crashes
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1, 2, 3], comp2: [2, 3, 4]})
+    world.take([0], comp2)
+    world.give([0], {comp2: [99]})

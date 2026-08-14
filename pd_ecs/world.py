@@ -63,6 +63,7 @@ class LocIndexer:
 #   firstly, the syntax of take was incorrect (did not use *components)
 # secondly, old archetype does not always exist in take (?)
 # thirdly, overlapping index in concat
+# fourthly world.update was needed, but not tested.
 
 class World:
     """

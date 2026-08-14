@@ -10,7 +10,7 @@ class ArchetypeManager:
 
     def add_entities(self, entities_df):
         # TODO: the form for storage of an archetype is diddifult to segragate into one place
-        archetype = tuple(entities_df.keys())
+        archetype = tuple(sorted(entities_df.keys()))
         bitmask = self._archetype_to_bitmask(archetype)
         new_entries = pd.Series(bitmask, index=entities_df.index)
         self.series = pd.concat([self.series, new_entries])
@@ -44,7 +44,7 @@ class ArchetypeManager:
         for comp, pow2 in self.component_powers.items():
             if bitmask & pow2:
                 out.append(comp)
-        return tuple(out)
+        return tuple(sorted(out))
 
     def take(self, entities, components):
         entity_atypes = self.series.loc[entities]
