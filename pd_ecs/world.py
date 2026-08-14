@@ -150,6 +150,8 @@ class World:
             entities: ids of entities
             components: dataframe or similar of component values
         """
+        if pd.api.types.is_scalar(entities):
+            entities = [entities]
         # TODO: consider sorting by archetype allowing slicing?
         components = _coerce_entity_dataframe(components, entities)
         transitions = self.archetypes.give(entities, components.columns)
@@ -228,9 +230,11 @@ class World:
         self.maxind = int(all_ids.max()) + 1
 
     def update(self, df):
+        # TODO: we currently have several ways to update state
+        # we should bring that down to one
+        df = pd.DataFrame(df)
         for atype, eids in self.archetypes.group(df.index):
             self._state[atype].loc[eids, df.columns] = df.loc[eids]
-
 
 
 def _at_in_filt(archetype, filt):

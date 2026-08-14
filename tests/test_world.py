@@ -188,8 +188,9 @@ def test_world_give():
     world.add_entities({component2: [1, 2, 3, 4, 5]})
     world.add_entities({component1: ['d']})
     world.give(
-        [1, 4, 2, 5],
-        {component1: ['a', 'b', 'c', 'a']})
+        [1, 4, 2],
+        {component1: ['a', 'b', 'c']})
+    world.give(5, {component1: ['a']})
 
     # bitmask sort: entity 5 (comp1 only) < entities 1,2,4 (comp1+comp2)
     assert set(world[component1].index) == set([5, 1, 2, 4])
