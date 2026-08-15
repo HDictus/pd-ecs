@@ -108,14 +108,14 @@ def test_world_add_entities():
 
     newentities_index = world[component2].index
     assert not any(np.isin(newentities_index, world[component1].index))
-    assert new == [4, 5, 6]
+    assert list(new) == [4, 5, 6]
 
     # check that this also works with dataframes
     new = world.add_entities(
         pd.DataFrame({component2:  [1, 8, 9]}))
 
     assert all(world[component2].loc[new] == [1, 8, 9])
-    assert new == [7, 8, 9]
+    assert list(new) == [7, 8, 9]
 
 
 def test_world_add_entities_array():
@@ -188,12 +188,13 @@ def test_world_give():
     world.add_entities({component2: [1, 2, 3, 4, 5]})
     world.add_entities({component1: ['d']})
     world.give(
-        [1, 4, 2, 5],
-        {component1: ['a', 'b', 'c', 'a']})
+        [1, 4, 2],
+        {component1: ['a', 'b', 'c']})
+    world.give(5, {component1: ['a']})
 
     # bitmask sort: entity 5 (comp1 only) < entities 1,2,4 (comp1+comp2)
-    assert list(world[component1].index) == [5, 1, 2, 4]
-    assert list(world[component1]) == ['a', 'a', 'c', 'b']
+    assert set(world[component1].index) == set([5, 1, 2, 4])
+    assert list(world[component1].loc[[5, 1, 2, 4]]) == ['a', 'a', 'c', 'b']
 
 def test_world_give_nonexistent_entity():
     component1 = Component('some')
@@ -202,7 +203,7 @@ def test_world_give_nonexistent_entity():
 
     world.add_entities({component1: ['d']})
     with pyt.raises(KeyError):
-        world.give(1, {component1: 'b'})
+        world.give([1], {component1: 'b'})
 
 def test_world_take():
     component1 = Component('some')
@@ -359,6 +360,20 @@ def test_world_take_component_not_present_is_noop():
         pd.Series([1, 2, 3], name=comp1)
     )
 
+def test_world_take_multi():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1, 2, 3], comp2: [1, 2, 3]})
+    world.take([0], comp1, comp2)
+    pd.testing.assert_frame_equal(
+        world[[comp1, comp2]].to_frame(),
+        pd.DataFrame(
+            {comp1: [2, 3], comp2: [2, 3]},
+            index=[1, 2]
+        )
+    )
+
 
 def test_world_take_component_partially_not_present_is_noop():
     comp1 = Component('a')
@@ -372,7 +387,7 @@ def test_world_take_component_partially_not_present_is_noop():
         pd.Series([5, 6], index=[1, 2], name=comp2)
     )
     pd.testing.assert_series_equal(
-        world[comp1],
+        world[comp1].sort_index(),
         pd.Series([1, 2, 3], name=comp1)
     )
 
@@ -622,3 +637,27 @@ def test_entity_view_loc_setitem_list_rows_list_cols():
         world[comp2], pd.Series([40.0, 20.0, 60.0], name=comp2)
     )
 
+
+def test_world_update():
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1.0, 2.0, 3.0], comp2: [10.0, 20.0, 30.0]})
+    world.update(pd.DataFrame({comp1: [2.0, 1.0], comp2: [1.0, 1.0]}))
+    pd.testing.assert_frame_equal(
+        world[[comp1, comp2]].to_frame(),
+        pd.DataFrame({
+            comp1: [2.0, 1.0, 3.0],
+            comp2: [1.0, 1.0, 30.0]})
+    )
+
+
+def test_world_take_does_not_stale():
+    # in a previous version, take left stale versions of the taken data
+    # in the new dataframe, leading to crashes
+    comp1 = Component('a')
+    comp2 = Component('b')
+    world = World()
+    world.add_entities({comp1: [1, 2, 3], comp2: [2, 3, 4]})
+    world.take([0], comp2)
+    world.give([0], {comp2: [99]})
