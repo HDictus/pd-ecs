@@ -7,36 +7,73 @@ Scientific programmers, already familiar with pandas could easily write quick mo
 
 
 
-How it should work
-==================
+Usage
+=====
 
-Each component corresponds to a dataframe.
-The dataframe contains one row for each entity that has this component.
-The index of each row is the id of that entity.
-Each column represents a specific piece of data in that component.
+Components define how data is stored.
+(dtypes are optional, and actually handling them is stil TODO for now lol)
+```
+X=Component('x', dtype=np.float32)
+Y=Component('y', dtype=np.float32)
+# components with sub-components. Stored together for efficiency
+POSITION = Component('position', x=X, y=Y)
+VELOCITY = Component('velocity', x=X, y=Y)
+TEAM = Component('team', dtype='category')
+```
 
-Alongside this, there are systems.
-Following the design of Conrcord, these are classes.
-Each method on the class represents an event.
-The processors have filters consisting of components.
-Entities which have all the components listed and none of the components blacklisted, are made accessible to the system in the form of a dataframe.
-This dataframe contains only the whitelisted components.
+Initialize a world and add entities
 
-Modifying this dataframe modifies the appropriate component dataframes.
+```
+world = pd_ecs.World()
+world.add_entities({
+    POSITION.x: [1, 2, 3, 4],
+    POSITION.y: [3, 4, 5, 6],
+    VELOCITY.x: [0, 0, 0, 1],
+    VELOCITY.y: [1, 1, 1, 0],
+    TEAM: [1, 2, 3, 4],
+})
+```
 
-Alternatively, we can just give the system access to all the components and a filter for each.
-This seems more complex in usage, but I don't know how feasible the preferred design is.
+Filter entities by attached components
+```
+entities = world[[POSITION, VELOCITY]]
+```
+Or use property-based filtering (still TODO)
+```
+entities = world[{
+   TEAM: [1, 2], # single values or lists
+   POSITION.x: (0, 1), # tuple represents min, max
+   POSITION.y: None # only checks for presence of component
+})
+```
 
+Change the state of the entities
+```
+entities[POSITION] += entities[VELOCITY]
+```
+Or if you used attr-friendly component names
+```
+entities.position += entities.velocity
+```
 
-ooh! we can do one better: we use add_entities(componentname=dict(varname=anarray))
+You can retrieve the selected components, but this is slow and should only be used for debugging or saving
+```
+print(entities.df())
+```
+Or their full state, including unselected components (inserts NaNs)
+```
+print(entities.df(all=True))
+```
 
-how do we add or remove components?
+At present we provide neither support nor constraint on how the processes of the simulation are implemented.
 
 
 To do 
 =====
+ - find a way to be type-hint friendly
+ - allow short attrname for components alongside more informative name
+ - make configurable background optimizations, such as extending dataframes in advance
+ - toggleable big fat dataframe with nans implementation - less memory efficient
+ - support for parallel and distributed computing
+ - GPU acceleration support
 
- - compound components 
- - address unclear aspects of data abstractions
- - separate specific implementation from interface
- - at least one other implementation

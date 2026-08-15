@@ -1,0 +1,37 @@
+There are a few steps to take to improve the efficiency.
+
+First, we need to remove support for multi-level component indices.
+They're prohibitively inefficient, and they make the program much more complicated.
+Something we need to decide is whether to support a hierarchy depth of one.
+In this case, the top-level component references the dataframe, and the dataframe has a single-level index.
+That single-level index still needs to have column names that combine the top and bottom level, so it can be concatenated (& veiwed).
+This could reduce performance overheads a lot in some cases, for example
+if you have many operations that use x, y, vx, vy then you can avoid constructing a view by declaring them all subcomponents of a physics component.
+
+I think we need to address the sorting first, and then we can see if it is a good idea to store subcomponents together.
+
+
+So, first things first, we sort by archetype.
+Then we implement slice-based views.
+After that we'll have to see : maybe some method of deciding the ordering of archetypes for optimization,
+or maybe it will be about grouping components that always go together.
+
+
+
+* sorting by archetypes
+
+After implementing the sort, a lot of stuff is non-vectorized so it is super slow.
+In order to make it better, I will use a bit to represent the presence/absence of each component.
+This leads to an n-bit integer representing each archetype.
+
+I think I need to make a separate module and unit test it for this, because it is going to get tricky.
+I need to somehow disentangle it from the World class.
+
+I got somewhere. Then I asked claude to handle edge cases and entity removal, and now it's looking pretty good.
+I'll have claude handle the first view-based implementation.
+
+It sucked. I'll handle it myself. I first need to handle creating a mapping of archetypes to ranges.
+I think I should make a separate module out of it.
+
+First I'll make a quick-and-dirty implementation that recalculates the from scratch ranges whenever there is a change.
+If this turns out to be a bottleneck (likely), then I'll create a separate ArchetypeRanges class that tracks the ranges and changes them as needed.
